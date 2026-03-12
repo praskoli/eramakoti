@@ -1,0 +1,92 @@
+{
+  "project_info": {
+    "project_number": "102522233118",
+    "project_id": "hindupoojaapp",
+    "storage_bucket": "hindupoojaapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102522233118:android:8f33eb564de60f2728690f",
+        "android_client_info": {
+          "package_name": "com.example.eramakoti"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "102522233118-tv7ksvbkfdcbnd6nfaful24jgpgaccmr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbIvK19GAvIYWdrTZwGh4ycKHqHDLyvg4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "102522233118-tv7ksvbkfdcbnd6nfaful24jgpgaccmr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102522233118:android:7b3231794a0d726128690f",
+        "android_client_info": {
+          "package_name": "com.hindu.pooja"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "102522233118-1elskkq09ufqh89ukd7a38l09sr0ares.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hindu.pooja",
+            "certificate_hash": "a5d5b2713e86855a5c35084d8ffa0e9f7bd0f2bd"
+          }
+        },
+        {
+          "client_id": "102522233118-bf1q3o0pb0getvr0rgcrap35hlj2i2lt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hindu.pooja",
+            "certificate_hash": "9b3c662360903466c775f773d94ade4a9149c5b2"
+          }
+        },
+        {
+          "client_id": "102522233118-s2tggkor0fhqife4ohn5osq1mc3vejiu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.hindu.pooja",
+            "certificate_hash": "f21b7fae4d1dc3b54a506acb85bc68707311b6ce"
+          }
+        },
+        {
+          "client_id": "102522233118-tv7ksvbkfdcbnd6nfaful24jgpgaccmr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbIvK19GAvIYWdrTZwGh4ycKHqHDLyvg4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "102522233118-tv7ksvbkfdcbnd6nfaful24jgpgaccmr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
