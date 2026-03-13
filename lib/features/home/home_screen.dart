@@ -25,6 +25,21 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _progressBg = Color(0xFFF0E7DB);
+  ReminderInfo? _reminderInfo;
+  @override
+  void initState() {
+    super.initState();
+    _loadReminderInfo();
+  }
+
+  Future<void> _loadReminderInfo() async {
+    final info = await ReminderService.instance.getReminderInfo();
+    if (!mounted) return;
+
+    setState(() {
+      _reminderInfo = info;
+    });
+  }
 
   Future<String> _loadMaAsayam(String language) async {
     final normalized = language.trim().toLowerCase();
@@ -110,7 +125,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final period = time.period == DayPeriod.am ? 'AM' : 'PM';
     return '$hour:$minute $period';
   }
+  String _formatReminderDisplay(ReminderInfo? info) {
+    if (info == null ||
+        !info.isEnabled ||
+        info.hour == null ||
+        info.minute == null) {
+      return 'No daily reminder set yet.';
+    }
 
+    final time = TimeOfDay(hour: info.hour!, minute: info.minute!);
+    return 'Daily reminder is set for ${_formatTimeOfDay(time)}.';
+  }
   Future<void> _openReminderActions(BuildContext context) async {
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -167,24 +192,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       final picked = await showTimePicker(
                         context: context,
                         initialTime: const TimeOfDay(hour: 6, minute: 0),
+                        initialEntryMode: TimePickerEntryMode.input,
                       );
 
                       if (picked == null) return;
 
-                      await ReminderService.instance.scheduleDailyReminder(
-                        hour: picked.hour,
-                        minute: picked.minute,
-                      );
+                      try {
+                        await ReminderService.instance.scheduleDailyReminder(
+                          hour: picked.hour,
+                          minute: picked.minute,
+                        );
+                        await _loadReminderInfo();
+                        final pending = await ReminderService.instance.pendingReminders();
 
-                      if (!mounted) return;
+                        if (!mounted) return;
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Daily reminder set for ${_formatTimeOfDay(picked)}.',
+                        final exists = pending.any((n) => n.id == 1001);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              exists
+                                  ? 'Daily reminder set for ${_formatTimeOfDay(picked)}.'
+                                  : 'Reminder could not be verified. Please try again.',
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to schedule reminder: $e'),
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _accent,
@@ -205,6 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.of(sheetContext).pop();
 
                       await ReminderService.instance.cancelDailyReminder();
+                      await _loadReminderInfo();
 
                       if (!mounted) return;
 
@@ -319,6 +362,56 @@ class _HomeScreenState extends State<HomeScreen> {
                               ctaLabel: ctaLabel,
                               onPressed: () => _handlePrimaryAction(context, meta),
                               isCompleted: meta.isTargetCompleted,
+                            ),
+                            const SizedBox(height: 16),
+
+                            StreamBuilder<int>(
+                              stream: RamakotiService.instance.watchGlobalRamCount(),
+                              builder: (context, globalSnapshot) {
+                                final globalCount = globalSnapshot.data ?? 0;
+
+                                return Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: _cardColor,
+                                    borderRadius: BorderRadius.circular(22),
+                                    border: Border.all(color: _softBorder),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Global Ram Count',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: _textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _formatIndianNumber(globalCount),
+                                          style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w800,
+                                            color: _textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          'Jai Shri Ram written across devotees',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: _textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 16),
 
@@ -472,9 +565,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      meta.isTargetCompleted
-                                          ? 'Set a new target first, then test reminders on an active run.'
-                                          : 'Set a daily reminder for your Ramakoti writing. Reminder should appear when the app is backgrounded or closed.',
+                                      _reminderInfo?.isEnabled == true
+                                          ? _formatReminderDisplay(_reminderInfo)
+                                          : (meta.isTargetCompleted
+                                          ? 'Your target is completed. You can still keep a daily reminder for your next Ramakoti journey.'
+                                          : 'Set a daily reminder for your Ramakoti writing. Reminder should appear when the app is backgrounded or closed.'),
                                       style: const TextStyle(
                                         color: _textSecondary,
                                         height: 1.45,

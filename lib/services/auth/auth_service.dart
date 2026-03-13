@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -18,33 +18,59 @@ class AuthService {
 
   Future<UserCredential?> signInWithFacebook() async {
     if (kIsWeb) {
-      final facebookProvider = FacebookAuthProvider();
+      final facebookProvider = FacebookAuthProvider()
+        ..addScope('email')
+        ..setCustomParameters({'display': 'popup'});
       return await _auth.signInWithPopup(facebookProvider);
     }
 
-    final LoginResult result = await FacebookAuth.instance.login();
+    try {
+      debugPrint('FB SIGN-IN: start');
 
-    if (result.status == LoginStatus.success) {
-      final accessToken = result.accessToken;
-      if (accessToken == null) return null;
+      try {
+        await FacebookAuth.instance.logOut();
+      } catch (_) {}
 
-      final credential =
-      FacebookAuthProvider.credential(accessToken.tokenString);
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: const ['email', 'public_profile'],
+        loginBehavior: LoginBehavior.nativeWithFallback,
+      );
 
-      return await _auth.signInWithCredential(credential);
+      if (result.status == LoginStatus.success) {
+        final accessToken = result.accessToken;
+        if (accessToken == null) return null;
+
+        final credential =
+        FacebookAuthProvider.credential(accessToken.tokenString);
+
+        return await _auth.signInWithCredential(credential);
+      }
+
+      if (result.status == LoginStatus.cancelled) {
+        return null;
+      }
+
+      throw Exception(result.message ?? 'Facebook sign-in failed');
+    } catch (e, st) {
+      debugPrint('FB SIGN-IN ERROR: $e');
+      debugPrint('$st');
+      rethrow;
     }
-
-    if (result.status == LoginStatus.cancelled) {
-      return null;
-    }
-
-    throw Exception(result.message ?? 'Facebook sign-in failed');
   }
 
   Future<void> signOut() async {
     try {
+      await _auth.signOut();
+    } catch (_) {}
+
+    try {
       if (!kIsWeb) {
         await _googleSignIn.signOut();
+      }
+    } catch (_) {}
+
+    try {
+      if (!kIsWeb) {
         await _googleSignIn.disconnect();
       }
     } catch (_) {}
@@ -52,7 +78,5 @@ class AuthService {
     try {
       await FacebookAuth.instance.logOut();
     } catch (_) {}
-
-    await _auth.signOut();
   }
 }

@@ -1,0 +1,61 @@
+{
+  "english": {
+    "title": "eRamakoti – Ramakoti Certificate",
+    "subtitle": "With the blessings of Lord Sri Rama",
+
+    "sriRama": "Sri Rama",
+
+    "labels": {
+      "devotee": "Devotee",
+      "milestone": "Milestone",
+      "date": "Date",
+      "certificateId": "Certificate ID"
+    },
+
+    "templates": {
+      "milestoneValue": "Completed {completedCount} Sri Rama Namas"
+    },
+
+    "footer": "May the blessings of Sri Rama bring peace, devotion, and spiritual strength."
+  },
+
+  "telugu": {
+    "title": "eRamakoti – రామకోటి సర్టిఫికేట్",
+    "subtitle": "శ్రీరాముని ఆశీర్వాదంతో",
+
+    "sriRama": "శ్రీరామ",
+
+    "labels": {
+      "devotee": "భక్తుడు",
+      "milestone": "సాధన",
+      "date": "తేదీ",
+      "certificateId": "సర్టిఫికేట్ ఐడి"
+    },
+
+    "templates": {
+      "milestoneValue": "{completedCount} శ్రీరామ నామాలు పూర్తిచేశారు"
+    },
+
+    "footer": "శ్రీరాముని కృపతో భక్తి, శాంతి, ఆధ్యాత్మిక శక్తి లభించుగాక."
+  },
+
+  "hindi": {
+    "title": "eRamakoti – रामकोटि प्रमाणपत्र",
+    "subtitle": "भगवान श्री राम के आशीर्वाद से",
+
+    "sriRama": "श्री राम",
+
+    "labels": {
+      "devotee": "भक्त",
+      "milestone": "उपलब्धि",
+      "date": "तिथि",
+      "certificateId": "प्रमाणपत्र आईडी"
+    },
+
+    "templates": {
+      "milestoneValue": "{completedCount} श्री राम नाम पूर्ण किए"
+    },
+
+    "footer": "भगवान श्री राम की कृपा से भक्ति, शांति और आध्यात्मिक शक्ति प्राप्त हो."
+  }
+}

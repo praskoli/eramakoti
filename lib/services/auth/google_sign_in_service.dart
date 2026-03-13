@@ -27,6 +27,14 @@ class GoogleSignInService {
 
         credential = await _auth.signInWithPopup(googleProvider);
       } else {
+        try {
+          await _googleSignIn.signOut();
+        } catch (_) {}
+
+        try {
+          await _googleSignIn.disconnect();
+        } catch (_) {}
+
         final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
         if (googleUser == null) return null;
 

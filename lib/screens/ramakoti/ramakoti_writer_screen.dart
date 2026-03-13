@@ -1,16 +1,15 @@
 import 'dart:math' as math;
 import 'dart:ui';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
+import '../support/support_ramakoti_screen.dart';
 import '../../models/ramakoti_meta.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/ramakoti_service.dart';
 import '../../services/notifications/reminder_service.dart';
-import '../../features/home/home_screen.dart';
+import '../../features/navigation/main_bottom_nav_screen.dart';
 import 'select_language_target_screen.dart';
 
 class RamakotiWriterScreen extends StatefulWidget {
@@ -190,11 +189,21 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
   Future<void> _goHome() async {
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(
+        builder: (_) => const MainBottomNavScreen(initialIndex: 0),
+      ),
           (route) => false,
     );
   }
+  Future<void> _openDonateFlow() async {
+    if (!mounted) return;
 
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SupportRamakotiScreen(),
+      ),
+    );
+  }
   Future<void> _goToNewTarget() async {
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
@@ -257,24 +266,41 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                       final picked = await showTimePicker(
                         context: context,
                         initialTime: const TimeOfDay(hour: 6, minute: 0),
+                        initialEntryMode: TimePickerEntryMode.input,
                       );
 
                       if (picked == null) return;
 
-                      await ReminderService.instance.scheduleDailyReminder(
-                        hour: picked.hour,
-                        minute: picked.minute,
-                      );
+                      try {
+                        await ReminderService.instance.scheduleDailyReminder(
+                          hour: picked.hour,
+                          minute: picked.minute,
+                        );
 
-                      if (!mounted) return;
+                        final pending = await ReminderService.instance.pendingReminders();
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Daily reminder set for ${_formatTimeOfDay(picked)}.',
+                        if (!mounted) return;
+
+                        final exists = pending.any((n) => n.id == 1001);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              exists
+                                  ? 'Daily reminder set for ${_formatTimeOfDay(picked)}.'
+                                  : 'Reminder could not be verified. Please try again.',
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to schedule reminder: $e'),
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _accent,
@@ -359,9 +385,18 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.of(dialogContext).pop();
-                          _goHome();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Your certificate is available in Ramakoti History.',
+                                ),
+                              ),
+                            );
+                          }
+                          await _goHome();
                         },
                         child: Text(t.homeButton),
                       ),
@@ -369,9 +404,18 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.of(dialogContext).pop();
-                          _goToNewTarget();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Your certificate is available in Ramakoti History.',
+                                ),
+                              ),
+                            );
+                          }
+                          await _goToNewTarget();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF8C00),
@@ -652,174 +696,182 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       ),
       body: Stack(
         children: [
-          StreamBuilder<RamakotiMeta>(
-            initialData: _latestMeta ?? RamakotiMeta.empty(user.uid),
-            stream: RamakotiService.instance.watchSummary(user.uid),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
+          StreamBuilder<int>(
+            stream: RamakotiService.instance.watchGlobalRamCount(),
+            builder: (context, globalSnapshot) {
+              final globalCount = globalSnapshot.data ?? 0;
 
-              final meta = snapshot.data ?? RamakotiMeta.empty(user.uid);
-              _latestMeta = meta;
+              return StreamBuilder<RamakotiMeta>(
+                initialData: _latestMeta ?? RamakotiMeta.empty(user.uid),
+                stream: RamakotiService.instance.watchSummary(user.uid),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
 
-              if (!meta.isTargetCompleted) {
-                _targetDialogShown = false;
-              }
+                  final meta = snapshot.data ?? RamakotiMeta.empty(user.uid);
+                  _latestMeta = meta;
 
-              if (meta.currentBatchProgress < RamakotiMeta.batchSize) {
-                _previewNextMalaAfterCompletedBatch = null;
-              }
+                  if (!meta.isTargetCompleted) {
+                    _targetDialogShown = false;
+                  }
 
-              final showNextMalaPreview =
-                  meta.currentBatchProgress == RamakotiMeta.batchSize &&
-                      !meta.isTargetCompleted &&
-                      _previewNextMalaAfterCompletedBatch == meta.completedBatchCount;
+                  if (meta.currentBatchProgress < RamakotiMeta.batchSize) {
+                    _previewNextMalaAfterCompletedBatch = null;
+                  }
 
-              final displayMalaNumber = showNextMalaPreview
-                  ? meta.currentBatchNumber + 1
-                  : meta.currentBatchNumber;
-              final displayMalaProgress = showNextMalaPreview
-                  ? 0
-                  : meta.currentBatchProgress;
-              final displayMalaProgressPercent = showNextMalaPreview
-                  ? 0.0
-                  : meta.currentBatchProgressPercent;
+                  final showNextMalaPreview =
+                      meta.currentBatchProgress == RamakotiMeta.batchSize &&
+                          !meta.isTargetCompleted &&
+                          _previewNextMalaAfterCompletedBatch == meta.completedBatchCount;
 
-              final targetText = meta.targetCount > 0
-                  ? _formatIndianNumber(meta.targetCount)
-                  : 'Not selected';
-              final writeLabel = _localizedRamLabel(meta.language);
-              final gridLabel = _localizedRamGridLabel(meta.language);
+                  final displayMalaNumber = showNextMalaPreview
+                      ? meta.currentBatchNumber + 1
+                      : meta.currentBatchNumber;
+                  final displayMalaProgress = showNextMalaPreview
+                      ? 0
+                      : meta.currentBatchProgress;
+                  final displayMalaProgressPercent = showNextMalaPreview
+                      ? 0.0
+                      : meta.currentBatchProgressPercent;
 
-              return SafeArea(
-                bottom: false,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Jai Shri Ram, $userName',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: _accent,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'May Shri Ram bless your journey of writing His divine name.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.35,
-                              color: _textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Language: ${meta.languageLabel}  •  Japa Mala $displayMalaNumber  •  Count ${_formatIndianNumber(meta.currentRunCount)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: _textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Target: $targetText',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: _textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Japa Mala Progress',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: displayMalaProgressPercent,
-                              minHeight: 8,
-                              backgroundColor: _progressBg,
-                              valueColor: const AlwaysStoppedAnimation(_accent),
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            '$displayMalaProgress / ${RamakotiMeta.batchSize}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: _textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Target Progress',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: meta.targetProgressPercent,
-                              minHeight: 8,
-                              backgroundColor: _progressBg,
-                              valueColor: const AlwaysStoppedAnimation(
-                                Color(0xFFD8D1E8),
+                  final targetText = meta.targetCount > 0
+                      ? _formatIndianNumber(meta.targetCount)
+                      : 'Not selected';
+                  final gridLabel = _localizedRamGridLabel(meta.language);
+
+                  return SafeArea(
+                    bottom: false,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Jai Shri Ram, $userName',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: _accent,
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'May Shri Ram bless your journey of writing His divine name.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.35,
+                                  color: _textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Language: ${meta.languageLabel}  •  Japa Mala $displayMalaNumber  •  Count ${_formatIndianNumber(meta.currentRunCount)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: _textSecondary,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Target: $targetText',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: _textSecondary,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _GlobalRamCountCard(count: globalCount),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Japa Mala Progress',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: displayMalaProgressPercent,
+                                  minHeight: 8,
+                                  backgroundColor: _progressBg,
+                                  valueColor: const AlwaysStoppedAnimation(_accent),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '$displayMalaProgress / ${RamakotiMeta.batchSize}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: _textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Target Progress',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: meta.targetProgressPercent,
+                                  minHeight: 8,
+                                  backgroundColor: _progressBg,
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Color(0xFFD8D1E8),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '${_formatIndianNumber(meta.currentRunCount)} / $targetText',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: _textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _statusLine(
+                                  meta,
+                                  showNextMalaPreview: showNextMalaPreview,
+                                  displayMalaNumber: displayMalaNumber,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: _textSecondary,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              RepaintBoundary(
+                                child: _RamakotiGrid(
+                                  filledCells: meta.currentBatchProgress,
+                                  gridLabel: gridLabel,
+                                  showNextMalaPreview: showNextMalaPreview,
+                                ),
+                              ),
+                              const SizedBox(height: 96),
+                            ],
                           ),
-                          const SizedBox(height: 5),
-                          Text(
-                            '${_formatIndianNumber(meta.currentRunCount)} / $targetText',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: _textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _statusLine(
-                              meta,
-                              showNextMalaPreview: showNextMalaPreview,
-                              displayMalaNumber: displayMalaNumber,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: _textSecondary,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          RepaintBoundary(
-                            child: _RamakotiGrid(
-                              filledCells: meta.currentBatchProgress,
-                              gridLabel: gridLabel,
-                              showNextMalaPreview: showNextMalaPreview,
-                            ),
-                          ),
-                          const SizedBox(height: 96),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
               );
             },
           ),
@@ -842,7 +894,6 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                   Color(0xFFFFF4D6),
                   Color(0xFFE8B4FF),
                 ],
-
                 createParticlePath: _petalPath,
               ),
             ),
@@ -851,31 +902,64 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
+        minimum: const EdgeInsets.fromLTRB(14, 10, 14, 14),
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: _bgColor,
-            border: Border(
+            border: const Border(
               top: BorderSide(color: _borderColor),
             ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 10,
+                offset: Offset(0, -2),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              SizedBox(
-                width: 104,
-                child: OutlinedButton(
-                  onPressed: _goHome,
-                  style: OutlinedButton.styleFrom(
+              Container(
+                width: 118,
+                height: 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66FF9E2C),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: Color(0x33FFB347),
+                      blurRadius: 28,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _openDonateFlow,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accent,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size(0, 54),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                   ),
-                  child: const Text(
-                    'Home',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Offer Support',
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -893,30 +977,37 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accent,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.orange.shade200,
+                    disabledBackgroundColor: Colors.orangeAccent.shade100,
                     disabledForegroundColor: Colors.white,
                     minimumSize: const Size(0, 54),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
+                    elevation: 0,
                   ),
                   child: _isWriting
                       ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
+                      strokeWidth: 2,
                       color: Colors.white,
                     ),
                   )
-                      : Text(
-                    (_latestMeta?.isTargetCompleted ?? false)
-                        ? 'Set New Target'
-                        : _localizedRamLabel(_latestMeta?.language ?? ''),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      (_latestMeta?.isTargetCompleted ?? false)
+                          ? 'Set New Target'
+                          : _localizedRamLabel(
+                        _latestMeta?.language ?? '',
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -928,7 +1019,78 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
     );
   }
 }
+class _GlobalRamCountCard extends StatelessWidget {
+  final int count;
 
+  const _GlobalRamCountCard({
+    required this.count,
+  });
+
+  String _formatIndianNumber(int value) {
+    final number = value.toString();
+    if (number.length <= 3) return number;
+
+    final last3 = number.substring(number.length - 3);
+    var remaining = number.substring(0, number.length - 3);
+    final parts = <String>[];
+
+    while (remaining.length > 2) {
+      parts.insert(0, remaining.substring(remaining.length - 2));
+      remaining = remaining.substring(0, remaining.length - 2);
+    }
+
+    if (remaining.isNotEmpty) {
+      parts.insert(0, remaining);
+    }
+
+    return '${parts.join(',')},$last3';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(
+          color: _RamakotiWriterScreenState._borderColor,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Global Ram Count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: _RamakotiWriterScreenState._textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _formatIndianNumber(count),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: _RamakotiWriterScreenState._textPrimary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'Jai Shri Ram written across devotees',
+            style: TextStyle(
+              fontSize: 11,
+              color: _RamakotiWriterScreenState._textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _RamakotiGrid extends StatelessWidget {
   final int filledCells;
   final String gridLabel;

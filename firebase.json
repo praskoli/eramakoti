@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"hindupoojaapp","appId":"1:102522233118:android:7b3231794a0d726128690f","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"hindupoojaapp","configurations":{"android":"1:102522233118:android:7b3231794a0d726128690f","web":"1:102522233118:web:13c6ba843545bc7728690f"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "hindupoojaapp",
+          "appId": "1:102522233118:android:7b3231794a0d726128690f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "hindupoojaapp",
+          "configurations": {
+            "android": "1:102522233118:android:7b3231794a0d726128690f",
+            "web": "1:102522233118:web:13c6ba843545bc7728690f"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

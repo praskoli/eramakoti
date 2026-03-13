@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth/auth_service.dart';
-import '../../features/home/home_screen.dart';
-
+import '../../features/navigation/main_bottom_nav_screen.dart';
 class RamakotiEntryGate extends StatelessWidget {
   const RamakotiEntryGate({super.key});
 
@@ -15,6 +14,5 @@ class RamakotiEntryGate extends StatelessWidget {
       );
     }
 
-    return const HomeScreen();
-  }
+    return const MainBottomNavScreen();  }
 }

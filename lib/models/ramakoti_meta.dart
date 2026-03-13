@@ -10,6 +10,9 @@ class RamakotiMeta {
   final int todayCount;
   final int currentRunCount;
 
+  // Current active run
+  final String currentRunId;
+
   // Stored batch summary fields
   final int storedCurrentBatchNumber;
   final int storedCurrentBatchProgress;
@@ -34,6 +37,7 @@ class RamakotiMeta {
     required this.totalCount,
     required this.todayCount,
     required this.currentRunCount,
+    required this.currentRunId,
     required this.storedCurrentBatchNumber,
     required this.storedCurrentBatchProgress,
     required this.storedCompletedBatchCount,
@@ -53,6 +57,7 @@ class RamakotiMeta {
       totalCount: (map['totalCount'] as num?)?.toInt() ?? 0,
       todayCount: (map['todayCount'] as num?)?.toInt() ?? 0,
       currentRunCount: (map['currentRunCount'] as num?)?.toInt() ?? 0,
+      currentRunId: map['currentRunId'] as String? ?? '',
 
       storedCurrentBatchNumber:
       (map['currentBatchNumber'] as num?)?.toInt() ?? 1,
@@ -94,6 +99,7 @@ class RamakotiMeta {
       totalCount: 0,
       todayCount: 0,
       currentRunCount: 0,
+      currentRunId: '',
       storedCurrentBatchNumber: 1,
       storedCurrentBatchProgress: 0,
       storedCompletedBatchCount: 0,
@@ -113,6 +119,7 @@ class RamakotiMeta {
     int? totalCount,
     int? todayCount,
     int? currentRunCount,
+    String? currentRunId,
     int? storedCurrentBatchNumber,
     int? storedCurrentBatchProgress,
     int? storedCompletedBatchCount,
@@ -130,6 +137,7 @@ class RamakotiMeta {
       totalCount: totalCount ?? this.totalCount,
       todayCount: todayCount ?? this.todayCount,
       currentRunCount: currentRunCount ?? this.currentRunCount,
+      currentRunId: currentRunId ?? this.currentRunId,
       storedCurrentBatchNumber:
       storedCurrentBatchNumber ?? this.storedCurrentBatchNumber,
       storedCurrentBatchProgress:

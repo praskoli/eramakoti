@@ -39,24 +39,49 @@ class FirestoreService {
         debugPrint('BOOTSTRAP: user root exists = ${userRootSnap.exists}');
         debugPrint('BOOTSTRAP: meta exists = ${metaSnap.exists}');
 
+        final existingProfileData = profileSnap.data() ?? <String, dynamic>{};
+        final existingUserRootData = userRootSnap.data() ?? <String, dynamic>{};
+
+        final existingProfilePhoto =
+        (existingProfileData['photoUrl'] as String? ?? '').trim();
+        final existingRootPhoto =
+        (existingUserRootData['photoUrl'] as String? ?? '').trim();
+        final authPhoto = (user.photoURL ?? '').trim();
+
+        final resolvedProfilePhoto =
+        existingProfilePhoto.isNotEmpty ? existingProfilePhoto : authPhoto;
+        final resolvedRootPhoto =
+        existingRootPhoto.isNotEmpty ? existingRootPhoto : authPhoto;
+
+        final existingMobile =
+        (existingProfileData['mobileNumber'] as String? ?? '').trim();
+
         if (!profileSnap.exists) {
           transaction.set(userProfileRef, {
             'uid': user.uid,
             'email': user.email,
             'displayName': user.displayName,
-            'photoUrl': user.photoURL,
+            'mobileNumber': user.phoneNumber ?? '',
+            'photoUrl': resolvedProfilePhoto,
             'provider': providerId,
             'createdAt': now,
             'updatedAt': now,
           });
         } else {
-          transaction.set(userProfileRef, {
-            'email': user.email,
-            'displayName': user.displayName,
-            'photoUrl': user.photoURL,
-            'provider': providerId,
-            'updatedAt': now,
-          }, SetOptions(merge: true));
+          transaction.set(
+            userProfileRef,
+            {
+              'email': user.email,
+              'displayName': user.displayName,
+              'mobileNumber': existingMobile.isNotEmpty
+                  ? existingMobile
+                  : (user.phoneNumber ?? ''),
+              'photoUrl': resolvedProfilePhoto,
+              'provider': providerId,
+              'updatedAt': now,
+            },
+            SetOptions(merge: true),
+          );
         }
 
         if (!userRootSnap.exists) {
@@ -64,19 +89,23 @@ class FirestoreService {
             'uid': user.uid,
             'email': user.email,
             'displayName': user.displayName,
-            'photoUrl': user.photoURL,
+            'photoUrl': resolvedRootPhoto,
             'provider': providerId,
             'createdAt': now,
             'updatedAt': now,
           });
         } else {
-          transaction.set(userRootRef, {
-            'email': user.email,
-            'displayName': user.displayName,
-            'photoUrl': user.photoURL,
-            'provider': providerId,
-            'updatedAt': now,
-          }, SetOptions(merge: true));
+          transaction.set(
+            userRootRef,
+            {
+              'email': user.email,
+              'displayName': user.displayName,
+              'photoUrl': resolvedRootPhoto,
+              'provider': providerId,
+              'updatedAt': now,
+            },
+            SetOptions(merge: true),
+          );
         }
 
         if (!metaSnap.exists) {
@@ -90,9 +119,13 @@ class FirestoreService {
             'updatedAt': now,
           });
         } else {
-          transaction.set(metaRef, {
-            'updatedAt': now,
-          }, SetOptions(merge: true));
+          transaction.set(
+            metaRef,
+            {
+              'updatedAt': now,
+            },
+            SetOptions(merge: true),
+          );
         }
       });
 
