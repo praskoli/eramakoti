@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../bhakta_mandali/screens/bhakta_mandali_home_screen.dart';
 import '../history/history_screen.dart';
 import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
@@ -26,13 +27,14 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
   late final List<Widget> _screens = const [
     HomeScreen(),
     RamakotiHistoryScreen(),
+    BhaktaMandaliHomeScreen(),
     ProfileScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 2);
+    _currentIndex = widget.initialIndex.clamp(0, 3);
   }
 
   @override
@@ -77,10 +79,17 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
               ),
               const SizedBox(width: 8),
               _NavItem(
-                label: 'Profile',
-                icon: Icons.account_circle_rounded,
+                label: 'Mandali',
+                icon: Icons.groups_rounded,
                 selected: _currentIndex == 2,
                 onTap: () => setState(() => _currentIndex = 2),
+              ),
+              const SizedBox(width: 8),
+              _NavItem(
+                label: 'Profile',
+                icon: Icons.account_circle_rounded,
+                selected: _currentIndex == 3,
+                onTap: () => setState(() => _currentIndex = 3),
               ),
             ],
           ),

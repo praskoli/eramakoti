@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/bhakta_mandali.dart';
+import '../../../../models/bhakta_mandali.dart';
 
 class MandaliCard extends StatelessWidget {
   const MandaliCard({

@@ -27,6 +27,27 @@ class RamakotiService {
   }) =>
       _users().doc(uid).collection('certificates').doc(runId);
 
+  CollectionReference<Map<String, dynamic>> _mandalis() =>
+      _firestore.collection('bhaktaMandalis');
+
+  DocumentReference<Map<String, dynamic>> _mandaliRef(String mandaliId) =>
+      _mandalis().doc(mandaliId);
+
+  CollectionReference<Map<String, dynamic>> _mandaliMembersRef(String mandaliId) =>
+      _mandaliRef(mandaliId).collection('members');
+
+  DocumentReference<Map<String, dynamic>> _userMandaliRef(
+      String uid,
+      String mandaliId,
+      ) =>
+      _users().doc(uid).collection('bhaktaMandalis').doc(mandaliId);
+
+  DocumentReference<Map<String, dynamic>> _mandaliChallengeRef(
+      String mandaliId,
+      String challengeId,
+      ) =>
+      _mandaliRef(mandaliId).collection('challenges').doc(challengeId);
+
   Future<Map<String, dynamic>?> getCertificateMetadata({
     required String uid,
     required String runId,
@@ -101,19 +122,44 @@ class RamakotiService {
     required String storagePath,
     required String downloadUrl,
   }) async {
-    await _certificateRef(uid: uid, runId: runId).set({
-      'certificateId': certificateId,
-      'runId': runId,
-      'uid': uid,
-      'devoteeName': devoteeName,
-      'completedCount': completedCount,
-      'completedAt': completedAt.toIso8601String(),
-      'certificateLanguage': certificateLanguage,
-      'generatedAt': DateTime.now().toIso8601String(),
-      'storagePath': storagePath,
-      'downloadUrl': downloadUrl,
-      'fileName': '${certificateId}_$certificateLanguage.pdf',
-    }, SetOptions(merge: true));
+    final certRef = _certificateRef(uid: uid, runId: runId);
+    final summaryRef = _summaryRef(uid);
+
+    await _firestore.runTransaction((tx) async {
+      final certSnap = await tx.get(certRef);
+      final existing = certSnap.data();
+
+      final alreadyGenerated =
+          existing != null &&
+              (existing['generatedAt'] != null) &&
+              ((existing['downloadUrl'] ?? '').toString().trim().isNotEmpty);
+
+      final summarySnap = await tx.get(summaryRef);
+      final summaryData = summarySnap.data() ?? <String, dynamic>{};
+      final currentCertificatesCount =
+          (summaryData['certificatesCount'] as num?)?.toInt() ?? 0;
+
+      tx.set(certRef, {
+        'certificateId': certificateId,
+        'runId': runId,
+        'uid': uid,
+        'devoteeName': devoteeName,
+        'completedCount': completedCount,
+        'completedAt': completedAt.toIso8601String(),
+        'certificateLanguage': certificateLanguage,
+        'generatedAt': DateTime.now().toIso8601String(),
+        'storagePath': storagePath,
+        'downloadUrl': downloadUrl,
+        'fileName': '${certificateId}_$certificateLanguage.pdf',
+      }, SetOptions(merge: true));
+
+      if (!alreadyGenerated) {
+        tx.set(summaryRef, {
+          'certificatesCount': currentCertificatesCount + 1,
+          'updatedAt': DateTime.now().toIso8601String(),
+        }, SetOptions(merge: true));
+      }
+    });
   }
 
   DateTime? _parseDate(dynamic value) {
@@ -293,116 +339,231 @@ class RamakotiService {
   }
 
   Future<WriteOneResult> writeOne(String uid) async {
-    return _firestore.runTransaction<WriteOneResult>((tx) async {
-      final summaryDoc = await tx.get(_summaryRef(uid));
-      final summaryData = summaryDoc.data();
+    final summaryDoc = await _summaryRef(uid).get();
+    final summaryData = summaryDoc.data();
 
-      if (summaryData == null) {
-        throw Exception('Ramakoti summary not found. Please create a journey.');
-      }
+    if (summaryData == null) {
+      throw Exception('Ramakoti summary not found. Please create a journey.');
+    }
 
-      final currentRunId = (summaryData['currentRunId'] as String?) ?? '';
-      if (currentRunId.trim().isEmpty) {
-        throw Exception(
-          'No active Ramakoti run found. Please create a journey.',
+    final currentRunId = (summaryData['currentRunId'] as String? ?? '').trim();
+    if (currentRunId.isEmpty) {
+      throw Exception('No active Ramakoti run found. Please create a journey.');
+    }
+
+    final currentRunCount =
+        (summaryData['currentRunCount'] as num?)?.toInt() ?? 0;
+    final targetCount = (summaryData['targetCount'] as num?)?.toInt() ?? 0;
+    final totalCount = (summaryData['totalCount'] as num?)?.toInt() ?? 0;
+    final todayCount = (summaryData['todayCount'] as num?)?.toInt() ?? 0;
+    final completedRunsCount =
+        (summaryData['completedRunsCount'] as num?)?.toInt() ?? 0;
+
+    final activeMandaliId =
+    (summaryData['activeMandaliId'] as String? ?? '').trim();
+    final activeMandaliName =
+    (summaryData['activeMandaliName'] as String? ?? '').trim();
+    final activeMandaliChallengeId =
+    (summaryData['activeMandaliChallengeId'] as String? ?? '').trim();
+
+    if (targetCount > 0 && currentRunCount >= targetCount) {
+      throw Exception('Current Ramakoti target is already completed.');
+    }
+
+    final newRunCount = currentRunCount + 1;
+    final newTotalCount = totalCount + 1;
+    final newTodayCount = todayCount + 1;
+
+    final newCompletedBatchCount = newRunCount ~/ RamakotiMeta.batchSize;
+    final newCurrentBatchNumber =
+    newRunCount <= 0 ? 1 : ((newRunCount - 1) ~/ RamakotiMeta.batchSize) + 1;
+    final remainder = newRunCount % RamakotiMeta.batchSize;
+    final newCurrentBatchProgress =
+    remainder == 0 ? RamakotiMeta.batchSize : remainder;
+
+    final batchCompleted = newRunCount > 0 &&
+        newCurrentBatchProgress == RamakotiMeta.batchSize;
+
+    final runCompleted = targetCount > 0 && newRunCount >= targetCount;
+
+    final nowIso = DateTime.now().toIso8601String();
+
+    final batch = _firestore.batch();
+
+    final runDocRef = _runsRef(uid).doc(currentRunId);
+    final globalDocRef = _globalRamCountRef();
+
+    batch.set(
+      runDocRef,
+      {
+        'currentRunCount': newRunCount,
+        'finalRunCount': newRunCount,
+        'completedBatchCount': newCompletedBatchCount,
+        'currentBatchNumber': newCurrentBatchNumber,
+        'currentBatchProgress': newCurrentBatchProgress,
+        'lastWrittenAt': nowIso,
+        'updatedAt': nowIso,
+        if (runCompleted) 'status': 'completed',
+        if (runCompleted) 'completedAt': nowIso,
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      _summaryRef(uid),
+      {
+        'currentRunCount': newRunCount,
+        'totalCount': newTotalCount,
+        'todayCount': newTodayCount,
+        'completedBatchCount': newCompletedBatchCount,
+        'currentBatchNumber': newCurrentBatchNumber,
+        'currentBatchProgress': newCurrentBatchProgress,
+        'lastWrittenAt': nowIso,
+        'updatedAt': nowIso,
+        if (runCompleted) 'completedRunsCount': completedRunsCount + 1,
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      globalDocRef,
+      {
+        'total': FieldValue.increment(1),
+        'updatedAt': nowIso,
+      },
+      SetOptions(merge: true),
+    );
+
+    if (activeMandaliId.isNotEmpty) {
+      final mandaliRef = _mandaliRef(activeMandaliId);
+      final memberRef = _mandaliMembersRef(activeMandaliId).doc(uid);
+      final userMandaliRef = _userMandaliRef(uid, activeMandaliId);
+
+      String resolvedMandaliChallengeId = activeMandaliChallengeId;
+      bool challengeCompleted = false;
+
+      if (resolvedMandaliChallengeId.isNotEmpty) {
+        final challengeRef =
+        _mandaliChallengeRef(activeMandaliId, resolvedMandaliChallengeId);
+        final challengeDoc = await challengeRef.get();
+        final challengeData = challengeDoc.data();
+
+        if (challengeData != null) {
+          final challengeProgress =
+              (challengeData['progressCount'] as num?)?.toInt() ?? 0;
+          final challengeTarget =
+              (challengeData['target'] as num?)?.toInt() ?? 0;
+          final newChallengeProgress = challengeProgress + 1;
+          challengeCompleted =
+              challengeTarget > 0 && newChallengeProgress >= challengeTarget;
+
+          batch.set(
+            challengeRef,
+            {
+              'progressCount': FieldValue.increment(1),
+              'updatedAt': nowIso,
+              if (challengeCompleted) 'status': 'completed',
+              if (challengeCompleted) 'completedAt': nowIso,
+            },
+            SetOptions(merge: true),
+          );
+
+          batch.set(
+            mandaliRef,
+            {
+              'totalCount': FieldValue.increment(1),
+              'lastContributionAt': nowIso,
+              'lastContributionBy': uid,
+              'updatedAt': nowIso,
+              'activeChallenge.progressCount': FieldValue.increment(1),
+              'activeChallenge.updatedAt': nowIso,
+              if (challengeCompleted) 'activeChallenge.status': 'completed',
+              if (challengeCompleted) 'activeChallenge.completedAt': nowIso,
+            },
+            SetOptions(merge: true),
+          );
+
+          batch.set(
+            _summaryRef(uid),
+            {
+              'lastMandaliContributionAt': nowIso,
+              'activeMandaliChallengeId': resolvedMandaliChallengeId,
+            },
+            SetOptions(merge: true),
+          );
+        } else {
+          batch.set(
+            mandaliRef,
+            {
+              'totalCount': FieldValue.increment(1),
+              'lastContributionAt': nowIso,
+              'lastContributionBy': uid,
+              'updatedAt': nowIso,
+            },
+            SetOptions(merge: true),
+          );
+
+          batch.set(
+            _summaryRef(uid),
+            {
+              'lastMandaliContributionAt': nowIso,
+            },
+            SetOptions(merge: true),
+          );
+        }
+      } else {
+        batch.set(
+          mandaliRef,
+          {
+            'totalCount': FieldValue.increment(1),
+            'lastContributionAt': nowIso,
+            'lastContributionBy': uid,
+            'updatedAt': nowIso,
+          },
+          SetOptions(merge: true),
+        );
+
+        batch.set(
+          _summaryRef(uid),
+          {
+            'lastMandaliContributionAt': nowIso,
+          },
+          SetOptions(merge: true),
         );
       }
 
-      final runDocRef = _runsRef(uid).doc(currentRunId);
-      final runDoc = await tx.get(runDocRef);
-      final runData = runDoc.data();
-
-      if (runData == null) {
-        throw Exception('Active Ramakoti run does not exist.');
-      }
-
-      final globalDocRef = _globalRamCountRef();
-      final globalDoc = await tx.get(globalDocRef);
-      final globalData = globalDoc.data();
-
-      final currentRunCount =
-          (runData['currentRunCount'] as num?)?.toInt() ?? 0;
-      final targetCount = (runData['targetCount'] as num?)?.toInt() ?? 0;
-      final totalCount = (summaryData['totalCount'] as num?)?.toInt() ?? 0;
-      final todayCount = (summaryData['todayCount'] as num?)?.toInt() ?? 0;
-      final completedRunsCount =
-          (summaryData['completedRunsCount'] as num?)?.toInt() ?? 0;
-      final globalTotal = (globalData?['total'] as num?)?.toInt() ?? 0;
-
-      if (targetCount > 0 && currentRunCount >= targetCount) {
-        throw Exception('Current Ramakoti target is already completed.');
-      }
-
-      final newRunCount = currentRunCount + 1;
-      final newTotalCount = totalCount + 1;
-      final newTodayCount = todayCount + 1;
-      final newGlobalTotal = globalTotal + 1;
-
-      final newCompletedBatchCount = newRunCount ~/ RamakotiMeta.batchSize;
-      final newCurrentBatchNumber =
-      newRunCount <= 0
-          ? 1
-          : ((newRunCount - 1) ~/ RamakotiMeta.batchSize) + 1;
-      final remainder = newRunCount % RamakotiMeta.batchSize;
-      final newCurrentBatchProgress =
-      remainder == 0 ? RamakotiMeta.batchSize : remainder;
-
-      final batchCompleted = newRunCount > 0 &&
-          newCurrentBatchProgress == RamakotiMeta.batchSize;
-
-      final runCompleted = targetCount > 0 && newRunCount >= targetCount;
-
-      final nowIso = DateTime.now().toIso8601String();
-
-      tx.set(
-        runDocRef,
+      batch.set(
+        memberRef,
         {
-          'currentRunCount': newRunCount,
-          'finalRunCount': newRunCount,
-          'completedBatchCount': newCompletedBatchCount,
-          'currentBatchNumber': newCurrentBatchNumber,
-          'currentBatchProgress': newCurrentBatchProgress,
-          'lastWrittenAt': nowIso,
-          'updatedAt': nowIso,
-          if (runCompleted) 'status': 'completed',
-          if (runCompleted) 'completedAt': nowIso,
+          'contributionCount': FieldValue.increment(1),
+          'challengeContributionCount': FieldValue.increment(1),
+          'lastContributionAt': nowIso,
         },
         SetOptions(merge: true),
       );
 
-      tx.set(
-        _summaryRef(uid),
+      batch.set(
+        userMandaliRef,
         {
-          'currentRunCount': newRunCount,
-          'totalCount': newTotalCount,
-          'todayCount': newTodayCount,
-          'completedBatchCount': newCompletedBatchCount,
-          'currentBatchNumber': newCurrentBatchNumber,
-          'currentBatchProgress': newCurrentBatchProgress,
-          'lastWrittenAt': nowIso,
-          'updatedAt': nowIso,
-          if (runCompleted) 'completedRunsCount': completedRunsCount + 1,
+          'contributionCount': FieldValue.increment(1),
+          'challengeContributionCount': FieldValue.increment(1),
+          'lastContributionAt': nowIso,
+          'isSelectedActiveMandali': true,
+          'displayName': activeMandaliName,
         },
         SetOptions(merge: true),
       );
+    }
 
-      tx.set(
-        globalDocRef,
-        {
-          'total': newGlobalTotal,
-          'updatedAt': nowIso,
-        },
-        SetOptions(merge: true),
-      );
+    await batch.commit();
 
-      return WriteOneResult(
-        currentRunCount: newRunCount,
-        totalCount: newTotalCount,
-        todayCount: newTodayCount,
-        batchCompleted: batchCompleted,
-        runCompleted: runCompleted,
-      );
-    });
+    return WriteOneResult(
+      currentRunCount: newRunCount,
+      totalCount: newTotalCount,
+      todayCount: newTodayCount,
+      batchCompleted: batchCompleted,
+      runCompleted: runCompleted,
+    );
   }
 
   Future<void> activateRun({

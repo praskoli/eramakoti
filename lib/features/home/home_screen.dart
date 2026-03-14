@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../../models/ramakoti_meta.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/ramakoti_service.dart';
+import '../../features/bhakta_mandali/screens/bhakta_mandali_home_screen.dart';
 import '../../services/notifications/reminder_service.dart';
 import '/../screens/ramakoti/ramakoti_writer_screen.dart';
 import '/../screens/ramakoti/select_language_target_screen.dart';
@@ -98,6 +99,20 @@ class _HomeScreenState extends State<HomeScreen> {
       return 'Create New Journey';
     }
     return 'Continue Journey';
+  }
+
+
+  Future<void> _openBhaktaMandaliHub(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BhaktaMandaliHomeScreen()),
+    );
+  }
+
+  String _mandaliSubtitle(RamakotiMeta meta) {
+    if (meta.activeMandaliName.trim().isNotEmpty) {
+      return 'Active: ${meta.activeMandaliName}';
+    }
+    return 'Create, join, and contribute to devotional groups.';
   }
 
   Future<void> _handlePrimaryAction(BuildContext context, RamakotiMeta meta) async {
@@ -362,6 +377,65 @@ class _HomeScreenState extends State<HomeScreen> {
                               ctaLabel: ctaLabel,
                               onPressed: () => _handlePrimaryAction(context, meta),
                               isCompleted: meta.isTargetCompleted,
+                            ),
+                            const SizedBox(height: 16),
+
+                            InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () => _openBhaktaMandaliHub(context),
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  color: _cardColor,
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: _softBorder),
+                                ),
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: const BoxDecoration(
+                                        color: _softAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.groups_rounded,
+                                        color: _accent,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Bhakta Mandali',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: _textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _mandaliSubtitle(meta),
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: _textSecondary,
+                                              height: 1.45,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: _accent,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
 

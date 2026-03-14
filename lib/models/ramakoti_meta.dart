@@ -27,6 +27,12 @@ class RamakotiMeta {
   final int certificatesCount;
   final int milestoneCount;
 
+  // Active Bhakta Mandali context
+  final String activeMandaliId;
+  final String activeMandaliName;
+  final String activeMandaliChallengeId;
+  final DateTime? lastMandaliContributionAt;
+
   // Timestamps
   final DateTime? lastWrittenAt;
   final DateTime? createdAt;
@@ -46,6 +52,10 @@ class RamakotiMeta {
     required this.completedRunsCount,
     required this.certificatesCount,
     required this.milestoneCount,
+    required this.activeMandaliId,
+    required this.activeMandaliName,
+    required this.activeMandaliChallengeId,
+    required this.lastMandaliContributionAt,
     required this.lastWrittenAt,
     required this.createdAt,
     required this.updatedAt,
@@ -72,6 +82,11 @@ class RamakotiMeta {
       completedRunsCount: (map['completedRunsCount'] as num?)?.toInt() ?? 0,
       certificatesCount: (map['certificatesCount'] as num?)?.toInt() ?? 0,
       milestoneCount: (map['milestoneCount'] as num?)?.toInt() ?? 0,
+
+      activeMandaliId: map['activeMandaliId'] as String? ?? '',
+      activeMandaliName: map['activeMandaliName'] as String? ?? '',
+      activeMandaliChallengeId: map['activeMandaliChallengeId'] as String? ?? '',
+      lastMandaliContributionAt: _parseDate(map['lastMandaliContributionAt']),
 
       lastWrittenAt: _parseDate(map['lastWrittenAt']),
       createdAt: _parseDate(map['createdAt']),
@@ -108,6 +123,10 @@ class RamakotiMeta {
       completedRunsCount: 0,
       certificatesCount: 0,
       milestoneCount: 0,
+      activeMandaliId: '',
+      activeMandaliName: '',
+      activeMandaliChallengeId: '',
+      lastMandaliContributionAt: null,
       lastWrittenAt: null,
       createdAt: null,
       updatedAt: null,
@@ -128,6 +147,10 @@ class RamakotiMeta {
     int? completedRunsCount,
     int? certificatesCount,
     int? milestoneCount,
+    String? activeMandaliId,
+    String? activeMandaliName,
+    String? activeMandaliChallengeId,
+    DateTime? lastMandaliContributionAt,
     DateTime? lastWrittenAt,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -149,6 +172,11 @@ class RamakotiMeta {
       completedRunsCount: completedRunsCount ?? this.completedRunsCount,
       certificatesCount: certificatesCount ?? this.certificatesCount,
       milestoneCount: milestoneCount ?? this.milestoneCount,
+      activeMandaliId: activeMandaliId ?? this.activeMandaliId,
+      activeMandaliName: activeMandaliName ?? this.activeMandaliName,
+      activeMandaliChallengeId: activeMandaliChallengeId ?? this.activeMandaliChallengeId,
+      lastMandaliContributionAt:
+      lastMandaliContributionAt ?? this.lastMandaliContributionAt,
       lastWrittenAt: lastWrittenAt ?? this.lastWrittenAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

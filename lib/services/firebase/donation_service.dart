@@ -6,100 +6,108 @@ class DonationService {
 
   static final DonationService instance = DonationService._();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  CollectionReference<Map<String, dynamic>> _supportWallRef() =>
-      _firestore.collection('support_wall');
+  /// USER DONATIONS COLLECTION
+  CollectionReference<Map<String, dynamic>> get _userDonations =>
+      _db
+          .collection('users')
+          .doc(_auth.currentUser!.uid)
+          .collection('donations');
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportHistory() {
-    final user = _auth.currentUser;
-    if (user == null) {
-      return const Stream.empty();
-    }
+  /// GLOBAL SUPPORT WALL
+  CollectionReference<Map<String, dynamic>> get _supportWall =>
+      _db.collection('support_wall');
 
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('donations')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+  /// CREATE DONATION
+  Future<String> createDonation({
+    required int amount,
+    required String source,
+    required String note,
+    bool anonymous = false,
+    String supporterName = '',
+    String supporterMessage = '',
+
+    /// INDIVIDUAL | MANDALI
+    String supportType = 'individual',
+
+    /// OPTIONAL MANDALI CONTEXT
+    String? sourceMandaliId,
+    String? sourceMandaliName,
+    String? sourceChallengeId,
+  }) async {
+    final uid = _auth.currentUser!.uid;
+
+    final doc = _userDonations.doc();
+
+    await doc.set({
+      'donationId': doc.id,
+      'uid': uid,
+
+      'amount': amount,
+      'note': note,
+      'source': source,
+
+      /// SUPPORT TYPE
+      'supportType': supportType,
+
+      /// Mandali context
+      'sourceMandaliId': sourceMandaliId,
+      'sourceMandaliName': sourceMandaliName,
+      'sourceChallengeId': sourceChallengeId,
+
+      'supporterName': supporterName,
+      'supporterMessage': supporterMessage,
+      'anonymous': anonymous,
+
+      /// pending → returned → verified
+      'status': 'pending',
+
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    return doc.id;
   }
 
+  /// MARK DONATION RETURNED AFTER UPI APP
+  Future<void> markDonationReturned({
+    required String donationId,
+  }) async {
+    final ref = _userDonations.doc(donationId);
+
+    await ref.update({
+      'status': 'returned',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// WATCH SUPPORT WALL (GLOBAL)
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportWall({
-    int limit = 10,
+    int limit = 20,
   }) {
-    return _supportWallRef()
+    return _supportWall
+        .where('verified', isEqualTo: true)
         .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots();
   }
 
-  Future<String> createDonation({
-    required int amount,
-    required String source,
-    String note = 'Support eRamakoti',
-    bool anonymous = false,
-    String supporterName = '',
-    String supporterMessage = '',
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('User not logged in');
-    }
-
-    final docRef = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('donations')
-        .doc();
-
-    final displayName = (user.displayName ?? '').trim();
-    final resolvedName = supporterName.trim().isNotEmpty
-        ? supporterName.trim()
-        : (displayName.isNotEmpty ? displayName : 'Devotee');
-
-    await docRef.set({
-      'donationId': docRef.id,
-      'uid': user.uid,
-      'userDisplayName': user.displayName ?? '',
-      'userEmail': user.email ?? '',
-      'userPhone': user.phoneNumber ?? '',
-      'amount': amount,
-      'status': 'initiated',
-      'upiId': '9121011887@pthdfc',
-      'payeeName': 'Koli Prasanth',
-      'note': note,
-      'source': source,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'verifiedAt': null,
-      'verifiedBy': null,
-      'adminNote': '',
-      'anonymous': anonymous,
-      'supporterName': resolvedName,
-      'supporterMessage': supporterMessage.trim(),
-    });
-
-    return docRef.id;
+  /// USER DONATION HISTORY
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchMyDonations() {
+    return _userDonations
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
-  Future<void> markDonationReturned({
-    required String donationId,
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('User not logged in');
-    }
-
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('donations')
-        .doc(donationId)
-        .update({
-      'status': 'returned_from_upi',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  /// SUPPORT HISTORY (ALIAS USED BY SUPPORT SCREEN)
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportHistory({
+    int limit = 50,
+  }) {
+    return _userDonations
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
   }
 }

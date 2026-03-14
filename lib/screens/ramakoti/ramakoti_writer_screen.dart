@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 import 'dart:ui';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../support/support_ramakoti_screen.dart';
 import '../../models/ramakoti_meta.dart';
 import '../../services/auth/auth_service.dart';
@@ -36,6 +38,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
   bool _isWriting = false;
   bool _targetDialogShown = false;
   RamakotiMeta? _latestMeta;
+  RamakotiMeta? _optimisticMeta;
 
   int? _previewNextMalaAfterCompletedBatch;
 
@@ -99,6 +102,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
         return 'Jai Shri Ram';
     }
   }
+
   _WriterLocalizedText _localizedPopupText(String language) {
     switch (language.trim().toLowerCase()) {
       case 'telugu':
@@ -153,6 +157,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
         );
     }
   }
+
   String _localizedRamGridLabel(String language) {
     switch (language.trim().toLowerCase()) {
       case 'telugu':
@@ -195,15 +200,41 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
           (route) => false,
     );
   }
+
   Future<void> _openDonateFlow() async {
     if (!mounted) return;
 
+    final meta = _latestMeta;
+    final activeMandaliId = (meta?.activeMandaliId ?? '').trim();
+    final activeMandaliName = (meta?.activeMandaliName ?? '').trim();
+    final activeMandaliChallengeId =
+    (meta?.activeMandaliChallengeId ?? '').trim();
+
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
+        builder: (_) => SupportRamakotiScreen(
+          source: 'writer_offer_support',
+          sourceMandaliId:
+          activeMandaliId.isEmpty ? null : activeMandaliId,
+          sourceMandaliName:
+          activeMandaliName.isEmpty ? null : activeMandaliName,
+          sourceChallengeId: activeMandaliChallengeId.isEmpty
+              ? null
+              : activeMandaliChallengeId,
+        ),
       ),
     );
   }
+
+  Future<void> _openMandaliHub() async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const MainBottomNavScreen(initialIndex: 2),
+      ),
+    );
+  }
+
   Future<void> _goToNewTarget() async {
     if (!mounted) return;
     await Navigator.of(context).pushReplacement(
@@ -277,7 +308,8 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                           minute: picked.minute,
                         );
 
-                        final pending = await ReminderService.instance.pendingReminders();
+                        final pending =
+                        await ReminderService.instance.pendingReminders();
 
                         if (!mounted) return;
 
@@ -465,30 +497,20 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-
-                /// Temple icon
                 const Text(
                   "🙏",
                   style: TextStyle(fontSize: 42),
                 ),
-
                 const SizedBox(height: 10),
-
-                /// Title
                 Text(
                   t.jaiShriRamTitle,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF8C00), // saffron
+                    color: Color(0xFFFF8C00),
                   ),
                 ),
-
                 const SizedBox(height: 14),
-
-                /// Completion message
-                /// Completion message
-                /// Completion message
                 Text(
                   t.japaMalaCompletedMessage,
                   textAlign: TextAlign.center,
@@ -496,10 +518,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     fontSize: 16,
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
-                /// Blessing line
                 Text(
                   t.blessingLine,
                   textAlign: TextAlign.center,
@@ -508,10 +527,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
-                /// Next milestone
                 Text(
                   "${t.nextSacredStepLabel} ${_formatIndianNumber(nextStep)}",
                   style: const TextStyle(
@@ -519,17 +535,12 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     fontSize: 16,
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
                 Text(
                   "${t.onlyMoreToReachIt} ${_formatIndianNumber(remaining)}",
                   style: const TextStyle(fontSize: 14),
                 ),
-
                 const SizedBox(height: 20),
-
-                /// Continue button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -570,12 +581,32 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       ) async {
     if (_isWriting || meta.isTargetCompleted) return;
 
+    final nextRunCount = meta.currentRunCount + 1;
+    final nextTotalCount = meta.totalCount + 1;
+    final nextTodayCount = meta.todayCount + 1;
+
+    final nextBatchNumber =
+    nextRunCount <= 0 ? 1 : ((nextRunCount - 1) ~/ 108) + 1;
+    final nextBatchProgress =
+    nextRunCount % 108 == 0 ? 108 : nextRunCount % 108;
+    final nextCompletedBatchCount = nextRunCount ~/ 108;
+
+    final optimisticMeta = meta.copyWith(
+      currentRunCount: nextRunCount,
+      totalCount: nextTotalCount,
+      todayCount: nextTodayCount,
+      storedCurrentBatchNumber: nextBatchNumber,
+      storedCurrentBatchProgress: nextBatchProgress,
+      storedCompletedBatchCount: nextCompletedBatchCount,
+    );
+
     setState(() {
       _isWriting = true;
+      _optimisticMeta = optimisticMeta;
     });
 
     try {
-      await _playWriteTone();
+      _playWriteTone();
 
       final result = await RamakotiService.instance.writeOne(uid);
 
@@ -605,6 +636,11 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+
+      setState(() {
+        _optimisticMeta = null;
+      });
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Write failed: $e')));
@@ -612,6 +648,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       if (mounted) {
         setState(() {
           _isWriting = false;
+          _optimisticMeta = null;
         });
       }
     }
@@ -709,8 +746,10 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
 
-                  final meta = snapshot.data ?? RamakotiMeta.empty(user.uid);
-                  _latestMeta = meta;
+                  final serverMeta =
+                      snapshot.data ?? RamakotiMeta.empty(user.uid);
+                  final meta = _optimisticMeta ?? serverMeta;
+                  _latestMeta = serverMeta;
 
                   if (!meta.isTargetCompleted) {
                     _targetDialogShown = false;
@@ -723,7 +762,8 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                   final showNextMalaPreview =
                       meta.currentBatchProgress == RamakotiMeta.batchSize &&
                           !meta.isTargetCompleted &&
-                          _previewNextMalaAfterCompletedBatch == meta.completedBatchCount;
+                          _previewNextMalaAfterCompletedBatch ==
+                              meta.completedBatchCount;
 
                   final displayMalaNumber = showNextMalaPreview
                       ? meta.currentBatchNumber + 1
@@ -785,6 +825,49 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                   height: 1.35,
                                 ),
                               ),
+                              if (meta.activeMandaliName.trim().isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: InkWell(
+                                    onTap: _openMandaliHub,
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: Ink(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF1DE),
+                                        borderRadius:
+                                        BorderRadius.circular(999),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.groups_rounded,
+                                            size: 18,
+                                            color: Color(0xFFFF9E2C),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              'Active Mandali: ${meta.activeMandaliName}',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF2F2A25),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               _GlobalRamCountCard(count: globalCount),
                               const SizedBox(height: 10),
@@ -803,7 +886,8 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                   value: displayMalaProgressPercent,
                                   minHeight: 8,
                                   backgroundColor: _progressBg,
-                                  valueColor: const AlwaysStoppedAnimation(_accent),
+                                  valueColor:
+                                  const AlwaysStoppedAnimation(_accent),
                                 ),
                               ),
                               const SizedBox(height: 5),
@@ -971,7 +1055,9 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                       ? null
                       : () async {
                     final meta =
-                        _latestMeta ?? RamakotiMeta.empty(user.uid);
+                        _optimisticMeta ??
+                            _latestMeta ??
+                            RamakotiMeta.empty(user.uid);
                     await _handleBottomAction(context, user.uid, meta);
                   },
                   style: ElevatedButton.styleFrom(
@@ -997,10 +1083,10 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                       : FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      (_latestMeta?.isTargetCompleted ?? false)
+                      ((_optimisticMeta ?? _latestMeta)?.isTargetCompleted ?? false)
                           ? 'Set New Target'
                           : _localizedRamLabel(
-                        _latestMeta?.language ?? '',
+                        (_optimisticMeta ?? _latestMeta)?.language ?? '',
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 1,
@@ -1019,6 +1105,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
     );
   }
 }
+
 class _GlobalRamCountCard extends StatelessWidget {
   final int count;
 
@@ -1091,6 +1178,7 @@ class _GlobalRamCountCard extends StatelessWidget {
     );
   }
 }
+
 class _RamakotiGrid extends StatelessWidget {
   final int filledCells;
   final String gridLabel;
@@ -1230,6 +1318,7 @@ class _RamakotiGrid extends StatelessWidget {
     );
   }
 }
+
 class _WriterLocalizedText {
   final String jaiShriRamTitle;
   final String targetCompletedTitle;
@@ -1255,16 +1344,37 @@ class _WriterLocalizedText {
     required this.continueWritingButton,
   });
 }
+
 Path _petalPath(Size size) {
   final width = size.width;
   final height = size.height;
 
   final path = Path();
   path.moveTo(width * 0.5, 0);
-  path.quadraticBezierTo(width * 0.95, height * 0.2, width * 0.7, height * 0.65);
-  path.quadraticBezierTo(width * 0.55, height * 0.95, width * 0.5, height);
-  path.quadraticBezierTo(width * 0.45, height * 0.95, width * 0.3, height * 0.65);
-  path.quadraticBezierTo(width * 0.05, height * 0.2, width * 0.5, 0);
+  path.quadraticBezierTo(
+    width * 0.95,
+    height * 0.2,
+    width * 0.7,
+    height * 0.65,
+  );
+  path.quadraticBezierTo(
+    width * 0.55,
+    height * 0.95,
+    width * 0.5,
+    height,
+  );
+  path.quadraticBezierTo(
+    width * 0.45,
+    height * 0.95,
+    width * 0.3,
+    height * 0.65,
+  );
+  path.quadraticBezierTo(
+    width * 0.05,
+    height * 0.2,
+    width * 0.5,
+    0,
+  );
   path.close();
   return path;
 }
