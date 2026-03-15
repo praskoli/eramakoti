@@ -1,36 +1,34 @@
-import 'package:url_launcher/url_launcher.dart';
-
 class UpiPaymentService {
   UpiPaymentService._();
 
   static final UpiPaymentService instance = UpiPaymentService._();
 
-  static const String upiId = '9121011887@pthdfc';
-  static const String payeeName = 'Koli Prasanth';
+  static const String upiId = 'eramakoti@ptyes';
+  static const String payeeName = 'eRamakoti';
   static const String note = 'Support eRamakoti';
 
-  Future<void> launchPayment({
+  String buildUpiUrl({
     required int amount,
-  }) async {
-    final uri = Uri(
-      scheme: 'upi',
-      host: 'pay',
-      queryParameters: {
-        'pa': upiId,
-        'pn': payeeName,
-        'tn': note,
-        if (amount > 0) 'am': amount.toString(),
-        'cu': 'INR',
-      },
-    );
+    String? transactionNote,
+  }) {
+    final safeAmount = amount <= 0 ? 1 : amount;
+    final amountText = safeAmount.toDouble().toStringAsFixed(2);
 
-    final ok = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    return 'upi://pay'
+        '?pa=${Uri.encodeComponent(upiId)}'
+        '&pn=${Uri.encodeComponent(payeeName)}'
+        '&tn=${Uri.encodeComponent(transactionNote?.trim().isNotEmpty == true ? transactionNote!.trim() : note)}'
+        '&am=$amountText'
+        '&cu=INR';
+  }
 
-    if (!ok) {
-      throw Exception('No UPI app found on this device');
-    }
+  String formatAmount(int amount) {
+    return '₹$amount';
+  }
+
+  String getPaymentInstructions() {
+    return 'Scan the QR in any UPI app like Google Pay, PhonePe, Paytm or BHIM to offer support. '
+        'If QR scanning is easier, please use that method. '
+        'This app does not process or store payment information.';
   }
 }

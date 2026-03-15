@@ -69,18 +69,11 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
   }
 
   String _buildUpiUrl({required int amount}) {
-    final uri = Uri(
-      scheme: 'upi',
-      host: 'pay',
-      queryParameters: {
-        'pa': UpiPaymentService.upiId,
-        'pn': UpiPaymentService.payeeName,
-        'tn': UpiPaymentService.note,
-        if (amount > 0) 'am': amount.toString(),
-        'cu': 'INR',
-      },
+    return UpiPaymentService.instance.buildUpiUrl(
+      amount: amount,
+      transactionNote:
+      _isMandaliSupport ? 'Mandali Support eRamakoti' : 'Support eRamakoti',
     );
-    return uri.toString();
   }
 
   String _formatDate(dynamic value) {
@@ -99,21 +92,44 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     );
   }
 
-  Future<void> _startSupportFlow(int amount, {String? source}) async {
+  String _friendlyError(Object e) {
+    final text = e.toString().toLowerCase();
+
+    if (text.contains('permission-denied')) {
+      return 'Permission denied while saving support details';
+    }
+    if (text.contains('network')) {
+      return 'Network issue. Please check your internet and try again';
+    }
+    if (text.contains('unavailable')) {
+      return 'Service temporarily unavailable. Please try again';
+    }
+    return e.toString();
+  }
+
+  Future<void> _recordSupportEntry(
+      int amount, {
+        required String source,
+      }) async {
     final messenger = ScaffoldMessenger.of(context);
 
     if (_loading) return;
+
+    if (amount <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+      return;
+    }
 
     setState(() {
       _loading = true;
     });
 
     try {
-      final donationId = await DonationService.instance.createDonation(
+      await DonationService.instance.createDonation(
         amount: amount,
-        source: (source ?? _resolvedSource).trim().isEmpty
-            ? _resolvedSource
-            : (source ?? _resolvedSource).trim(),
+        source: source.trim().isEmpty ? _resolvedSource : source.trim(),
         note: _isMandaliSupport
             ? 'Mandali support offering'
             : 'Support eRamakoti',
@@ -126,17 +142,13 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
         sourceChallengeId: widget.sourceChallengeId,
       );
 
-      await UpiPaymentService.instance.launchPayment(amount: amount);
-
-      await DonationService.instance.markDonationReturned(
-        donationId: donationId,
-      );
-
       if (!mounted) return;
       _showRecordedDialog(amount);
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Could not process support: $e')),
+        SnackBar(
+          content: Text('Could not record support entry: ${_friendlyError(e)}'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -153,11 +165,11 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
         : '🙏 Offering Recorded';
 
     final body = _isMandaliSupport
-        ? 'Your Mandali support entry for ₹$amount has been created.\n\n'
-        'If you completed the payment in the UPI app, the status will be reviewed and updated in Support History.\n\n'
+        ? 'Your Mandali support entry for ₹$amount has been recorded.\n\n'
+        'If you completed the payment in your UPI app, it can be reviewed later in Support History.\n\n'
         'Jai Shri Ram.'
-        : 'Your offering entry for ₹$amount has been created.\n\n'
-        'If you completed the payment in the UPI app, the status will be reviewed and updated in Support History.\n\n'
+        : 'Your offering entry for ₹$amount has been recorded.\n\n'
+        'If you completed the payment in your UPI app, it can be reviewed later in Support History.\n\n'
         'Jai Shri Ram.';
 
     showDialog(
@@ -216,17 +228,11 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     return GestureDetector(
       onTap: _loading
           ? null
-          : () async {
+          : () {
         setState(() {
           _selectedAmount = amount;
           _customController.clear();
         });
-        await _startSupportFlow(
-          amount,
-          source: _isMandaliSupport
-              ? 'mandali_preset_amount_tile'
-              : 'preset_amount_tile',
-        );
       },
       child: Container(
         height: 58,
@@ -350,8 +356,8 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final customAmount = _selectedValue ?? 21;
-    final qrData = _buildUpiUrl(amount: customAmount);
+    final selectedAmount = _selectedValue ?? 21;
+    final qrData = _buildUpiUrl(amount: selectedAmount);
 
     return Scaffold(
       backgroundColor: _bg,
@@ -383,7 +389,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                             Text(
                               _isMandaliSupport
                                   ? '🪔 Support this Mandali'
-                                  : '🪔 Support this devotional effort',
+                                  : '🪔 Offer Support to eRamakoti',
                               style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
@@ -394,10 +400,19 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                             Text(
                               _isMandaliSupport
                                   ? 'Your support helps this Bhakta Mandali continue devotional activities and complete its sacred challenge.'
-                                  : 'Offerings help maintain this devotional app and support future Ramakoti features.\nPart of donations support Annadanam programs and spiritual education.',
+                                  : 'Your voluntary contribution helps maintain this devotional platform and support future spiritual initiatives.',
                               style: const TextStyle(
                                 height: 1.45,
                                 color: _textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'This offering is completely optional and does not unlock any features in the app.',
+                              style: TextStyle(
+                                height: 1.45,
+                                color: _textSecondary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             if (_isMandaliSupport) ...[
@@ -450,7 +465,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                             Text(
                               _isMandaliSupport
                                   ? 'Choose a Mandali support amount'
-                                  : 'Choose an offering',
+                                  : 'Choose an offering amount',
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w800,
@@ -458,11 +473,9 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                               ),
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _isMandaliSupport
-                                  ? 'Tap any amount to support this Mandali instantly via UPI.'
-                                  : 'Tap any amount to pay instantly via UPI.',
-                              style: const TextStyle(
+                            const Text(
+                              'Select an amount and scan the QR in your UPI app.',
+                              style: TextStyle(
                                 color: _textSecondary,
                               ),
                             ),
@@ -541,7 +554,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                                 controller: _nameController,
                                 decoration: const InputDecoration(
                                   labelText:
-                                  'Name for verified support wall (optional)',
+                                  'Name for support wall (optional)',
                                   border: OutlineInputBorder(),
                                 ),
                               ),
@@ -567,109 +580,103 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                                 },
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text(
-                                  'Post anonymously if verified',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'UPI QR',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w800,
-                                  color: _textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _isMandaliSupport
-                                    ? 'Scan to support this Mandali with ₹$customAmount'
-                                    : 'Scan to pay ₹$customAmount',
-                                style: const TextStyle(color: _textSecondary),
-                              ),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: _border),
-                                  ),
-                                  child: QrImageView(
-                                    data: qrData,
-                                    version: QrVersions.auto,
-                                    size: 220,
-                                    backgroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: Text(
-                                  'UPI ID: ${UpiPaymentService.upiId}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: Text(
-                                  'Payee: ${UpiPaymentService.payeeName}',
-                                  style: const TextStyle(
-                                    color: _textSecondary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _accent,
-                                  ),
-                                  onPressed: _loading
-                                      ? null
-                                      : () async {
-                                    final value = _selectedValue;
-
-                                    if (value == null || value <= 0) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Please enter a valid amount',
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-
-                                    await _startSupportFlow(
-                                      value,
-                                      source: _isMandaliSupport
-                                          ? 'mandali_custom_amount'
-                                          : 'custom_amount',
-                                    );
-                                  },
-                                  child: _loading
-                                      ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                  )
-                                      : Text(
-                                    _isMandaliSupport
-                                        ? 'Pay Mandali Support via UPI'
-                                        : 'Pay Custom Amount via UPI',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                                  'Post anonymously if reviewed',
                                 ),
                               ),
                             ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _sectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Scan QR to pay',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: _textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isMandaliSupport
+                                  ? 'Scan to support this Mandali with ₹$selectedAmount'
+                                  : 'Scan to pay ₹$selectedAmount',
+                              style: const TextStyle(color: _textSecondary),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: _border),
+                                ),
+                                child: QrImageView(
+                                  data: qrData,
+                                  version: QrVersions.auto,
+                                  size: 220,
+                                  backgroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: Text(
+                                'UPI ID: ${UpiPaymentService.upiId}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: Text(
+                                'Payee: ${UpiPaymentService.payeeName}',
+                                style: const TextStyle(
+                                  color: _textSecondary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _accent,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _loading
+                                    ? null
+                                    : () async {
+                                  await _recordSupportEntry(
+                                    selectedAmount,
+                                    source: _isMandaliSupport
+                                        ? 'mandali_qr_payment_confirmed'
+                                        : 'qr_payment_confirmed',
+                                  );
+                                },
+                                child: _loading
+                                    ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                    : Text(
+                                  _isMandaliSupport
+                                      ? 'I Have Paid Mandali Support'
+                                      : 'I Have Paid',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -702,18 +709,32 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                               value: UpiPaymentService.payeeName,
                               actionText: 'Copy',
                               onTap: () => _copyText(
-                                'Payee name',
+                                'Payee',
                                 UpiPaymentService.payeeName,
                               ),
                             ),
                             const SizedBox(height: 10),
                             _infoRow(
+                              label: 'Amount',
+                              value: '₹$selectedAmount',
+                              actionText: 'Copy',
+                              onTap: () => _copyText(
+                                'Amount',
+                                selectedAmount.toString(),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            _infoRow(
                               label: 'Note',
-                              value: UpiPaymentService.note,
+                              value: _isMandaliSupport
+                                  ? 'Mandali Support eRamakoti'
+                                  : UpiPaymentService.note,
                               actionText: 'Copy',
                               onTap: () => _copyText(
                                 'Note',
-                                UpiPaymentService.note,
+                                _isMandaliSupport
+                                    ? 'Mandali Support eRamakoti'
+                                    : UpiPaymentService.note,
                               ),
                             ),
                           ],
@@ -740,9 +761,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                _isMandaliSupport
-                                    ? 'After payment, please return to the app. Your Mandali support will appear in Support History and can be tracked separately from individual offerings.'
-                                    : 'After payment, please return to the app. Your offering will appear in Support History and move to the Support Wall only after verification.',
+                                'Payments are processed through your UPI app. This app does not store or process payment information.\n\nAfter payment, tap "I Have Paid" to record your support entry.',
                                 style: const TextStyle(
                                   height: 1.4,
                                   color: _greenText,
@@ -759,7 +778,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Verified Support Wall',
+                              'Support Wall',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w800,
@@ -768,7 +787,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Only verified offerings are shown here.',
+                              'Support entries shown here can be reviewed later.',
                               style: TextStyle(
                                 color: _textSecondary,
                                 height: 1.4,
@@ -788,7 +807,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8),
                                 child: Text(
-                                  'No verified support entries yet.',
+                                  'No support entries yet.',
                                   style: TextStyle(color: _textSecondary),
                                 ),
                               )

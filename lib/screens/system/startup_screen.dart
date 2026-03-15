@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:eramakoti/app/router/route_names.dart';
+import 'package:eramakoti/features/auth/login_screen.dart';
+import 'package:eramakoti/screens/system/force_update_screen.dart';
 import 'package:eramakoti/services/app_update_service.dart';
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class StartupScreen extends StatefulWidget {
+  const StartupScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<StartupScreen> createState() => _StartupScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _StartupScreenState extends State<StartupScreen> {
   @override
   void initState() {
     super.initState();
@@ -18,29 +18,33 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _runStartupChecks() async {
-    print('SPLASH_CHECK started');
     try {
       final result = await AppUpdateService.check();
-      print(
-        'SPLASH_CHECK result force=${result.force} optional=${result.optional} url=${result.url}',
-      );
 
       if (!mounted) return;
 
       if (result.force && result.url != null && result.url!.isNotEmpty) {
-        final encodedUrl = Uri.encodeComponent(result.url!);
-        print('SPLASH_CHECK going to force update');
-        context.go('${RouteNames.forceUpdate}?url=$encodedUrl');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ForceUpdateScreen(playUrl: result.url!),
+          ),
+        );
         return;
       }
 
-      print('SPLASH_CHECK going to login');
-      context.go(RouteNames.login);
-    } catch (e, st) {
-      print('SPLASH_CHECK exception=$e');
-      print('SPLASH_CHECK stack=$st');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        ),
+      );
+    } catch (_) {
       if (!mounted) return;
-      context.go(RouteNames.login);
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        ),
+      );
     }
   }
 

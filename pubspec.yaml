@@ -2,7 +2,7 @@ name: eramakoti
 description: "eRamakoti - Digital Sri Rama Nama Writing"
 publish_to: 'none'
 
-version: 32.0.0+28
+version: 32.0.0+32
 
 environment:
   sdk: ^3.11.1
@@ -15,7 +15,6 @@ dependencies:
   firebase_auth: ^6.0.2
   cloud_firestore: ^6.0.1
   firebase_storage: ^13.0.1
-
   go_router: ^16.2.1
   google_sign_in: 6.2.1
   flutter_facebook_auth: ^7.1.2
@@ -33,15 +32,17 @@ dependencies:
   share_plus: ^10.0.2
   image_picker: ^1.1.2
   image: ^4.2.0
-
   pdf: ^3.11.1
   printing: ^5.13.4
   path_provider: ^2.1.4
   uuid: ^4.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
 flutter:
   uses-material-design: true
 
@@ -52,3 +53,9 @@ flutter:
     - assets/audio/temple_bell.mp3
     - assets/content/ma_asayam/
     - assets/data/certificate_texts.json
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/images/app_icon.png
+  min_sdk_android: 21
