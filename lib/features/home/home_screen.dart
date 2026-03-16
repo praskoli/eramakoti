@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/ramakoti_meta.dart';
 import '../../services/auth/auth_service.dart';
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _progressBg = Color(0xFFF0E7DB);
   ReminderInfo? _reminderInfo;
+
   @override
   void initState() {
     super.initState();
@@ -101,7 +103,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Continue Journey';
   }
 
-
   Future<void> _openBhaktaMandaliHub(BuildContext context) async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const BhaktaMandaliHomeScreen()),
@@ -115,10 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Create, join, and contribute to devotional groups.';
   }
 
-  Future<void> _handlePrimaryAction(BuildContext context, RamakotiMeta meta) async {
+  Future<void> _handlePrimaryAction(
+      BuildContext context,
+      RamakotiMeta meta,
+      ) async {
     if (!mounted) return;
 
-    if (!meta.hasTarget || meta.language.trim().isEmpty || meta.isTargetCompleted) {
+    if (!meta.hasTarget ||
+        meta.language.trim().isEmpty ||
+        meta.isTargetCompleted) {
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const SelectLanguageTargetScreen(),
@@ -134,12 +140,142 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _shareApp() async {
+    const appLink =
+        'https://play.google.com/store/apps/details?id=com.hindu.pooja';
+
+    final messages = [
+      '''
+Jai Shri Ram 🙏
+
+On the auspicious occasion of Ugadi and Sri Rama Navami, let us write Sri Rama Nama with devotion.
+
+Join the sacred Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us write Sri Rama Nama together and offer our devotion.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Ugadi and Sri Rama Navami are sacred occasions for Rama Nama smarana.
+
+Let us write Sri Rama Nama digitally with devotion through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us chant and write Sri Rama Nama with devotion.
+
+Join the sacred Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us celebrate Ugadi and Sri Rama Navami by writing Sri Rama Nama with devotion.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us write Sri Rama Nama together and spread devotion.
+
+Join the sacred Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+For Ugadi and Sri Rama Navami, let us write Sri Rama Nama together.
+
+Let us fill the world with Rama Nama.
+
+Join the sacred journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Sri Rama Navami is approaching.
+
+Let us write Sri Rama Nama with devotion and offer it to Lord Rama.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+🚩 Jai Shri Ram 🚩
+
+For Ugadi and Sri Rama Navami, let us write Sri Rama Nama together.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us write Sri Rama Nama together as a family this Sri Rama Navami.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+Let us write 1,00,000 Sri Rama Namas together for Sri Rama Navami.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+      '''
+Jai Shri Ram 🙏
+
+For Ugadi and Sri Rama Navami, let us write Sri Rama Nama together.
+
+Our goal is to write 1,00,000 Sri Rama Namas with devotion.
+
+Join the Rama Nama journey through the eRamakoti app.
+
+$appLink
+''',
+    ];
+
+    final randomMessage = messages[DateTime.now().millisecond % messages.length];
+
+    await Share.share(
+      randomMessage,
+      subject: 'eRamakoti - Sri Rama Nama',
+    );
+  }
+
   String _formatTimeOfDay(TimeOfDay time) {
     final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final minute = time.minute.toString().padLeft(2, '0');
     final period = time.period == DayPeriod.am ? 'AM' : 'PM';
     return '$hour:$minute $period';
   }
+
   String _formatReminderDisplay(ReminderInfo? info) {
     if (info == null ||
         !info.isEnabled ||
@@ -151,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final time = TimeOfDay(hour: info.hour!, minute: info.minute!);
     return 'Daily reminder is set for ${_formatTimeOfDay(time)}.';
   }
+
   Future<void> _openReminderActions(BuildContext context) async {
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -218,7 +355,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           minute: picked.minute,
                         );
                         await _loadReminderInfo();
-                        final pending = await ReminderService.instance.pendingReminders();
+                        final pending =
+                        await ReminderService.instance.pendingReminders();
 
                         if (!mounted) return;
 
@@ -351,7 +489,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 return RefreshIndicator(
                   onRefresh: () async {
                     setState(() {});
-                    await Future<void>.delayed(const Duration(milliseconds: 350));
+                    await Future<void>.delayed(
+                      const Duration(milliseconds: 350),
+                    );
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -366,6 +506,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               title: _greetingText(user.displayName),
                               subtitle: _buildStatusLine(meta),
                               photoUrl: user.photoURL,
+                              onShare: _shareApp,
                             ),
                             const SizedBox(height: 18),
 
@@ -375,7 +516,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   : 'Current Ramakoti Sankalpam',
                               subtitle: _targetSubtitle(meta),
                               ctaLabel: ctaLabel,
-                              onPressed: () => _handlePrimaryAction(context, meta),
+                              onPressed: () =>
+                                  _handlePrimaryAction(context, meta),
                               isCompleted: meta.isTargetCompleted,
                             ),
                             const SizedBox(height: 16),
@@ -389,7 +531,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   borderRadius: BorderRadius.circular(22),
                                   border: Border.all(color: _softBorder),
                                 ),
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                padding:
+                                const EdgeInsets.fromLTRB(16, 16, 16, 16),
                                 child: Row(
                                   children: [
                                     Container(
@@ -407,7 +550,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                         children: [
                                           const Text(
                                             'Bhakta Mandali',
@@ -440,7 +584,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 16),
 
                             StreamBuilder<int>(
-                              stream: RamakotiService.instance.watchGlobalRamCount(),
+                              stream:
+                              RamakotiService.instance.watchGlobalRamCount(),
                               builder: (context, globalSnapshot) {
                                 final globalCount = globalSnapshot.data ?? 0;
 
@@ -452,9 +597,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                     border: Border.all(color: _softBorder),
                                   ),
                                   child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      16,
+                                      16,
+                                      16,
+                                    ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Global Ram Count',
@@ -503,7 +654,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: _MiniStatCard(
                                     icon: Icons.edit_note_rounded,
                                     label: 'Current Run',
-                                    value: _formatIndianNumber(meta.currentRunCount),
+                                    value: _formatIndianNumber(
+                                      meta.currentRunCount,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -524,7 +677,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: _MiniStatCard(
                                     icon: Icons.layers_outlined,
                                     label: 'Completed Batches',
-                                    value: meta.completedBatchCount.toString(),
+                                    value:
+                                    meta.completedBatchCount.toString(),
                                   ),
                                 ),
                               ],
@@ -567,7 +721,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       value: meta.targetProgressPercent,
                                       minHeight: 10,
                                       backgroundColor: _progressBg,
-                                      valueColor: const AlwaysStoppedAnimation(_accent),
+                                      valueColor: const AlwaysStoppedAnimation(
+                                        _accent,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -580,7 +736,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       fontSize: 13,
                                     ),
                                   ),
-                                  if (meta.hasTarget && !meta.isTargetCompleted) ...[
+                                  if (meta.hasTarget &&
+                                      !meta.isTargetCompleted) ...[
                                     const SizedBox(height: 16),
                                     const Text(
                                       'Current Batch Progress',
@@ -598,7 +755,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         minHeight: 10,
                                         backgroundColor: _progressBg,
                                         valueColor:
-                                        const AlwaysStoppedAnimation(Color(0xFFD98A22)),
+                                        const AlwaysStoppedAnimation(
+                                          Color(0xFFD98A22),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -640,7 +799,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Expanded(
                                     child: Text(
                                       _reminderInfo?.isEnabled == true
-                                          ? _formatReminderDisplay(_reminderInfo)
+                                          ? _formatReminderDisplay(
+                                        _reminderInfo,
+                                      )
                                           : (meta.isTargetCompleted
                                           ? 'Your target is completed. You can still keep a daily reminder for your next Ramakoti journey.'
                                           : 'Set a daily reminder for your Ramakoti writing. Reminder should appear when the app is backgrounded or closed.'),
@@ -657,9 +818,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             _SectionCard(
                               title: 'Maa Asayam',
-                              child: introSnapshot.connectionState == ConnectionState.waiting
+                              child: introSnapshot.connectionState ==
+                                  ConnectionState.waiting
                                   ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 18),
+                                padding:
+                                EdgeInsets.symmetric(vertical: 18),
                                 child: Center(
                                   child: CircularProgressIndicator(),
                                 ),
@@ -748,7 +911,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: double.infinity,
                               height: 58,
                               child: ElevatedButton(
-                                onPressed: () => _handlePrimaryAction(context, meta),
+                                onPressed: () =>
+                                    _handlePrimaryAction(context, meta),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _accent,
                                   foregroundColor: Colors.white,
@@ -785,11 +949,13 @@ class _TopHeader extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? photoUrl;
+  final VoidCallback onShare;
 
   const _TopHeader({
     required this.title,
     required this.subtitle,
     required this.photoUrl,
+    required this.onShare,
   });
 
   @override
@@ -830,7 +996,29 @@ class _TopHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 10),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onShare,
+            borderRadius: BorderRadius.circular(999),
+            child: Ink(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _HomeScreenState._cardColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: _HomeScreenState._softBorder),
+              ),
+              child: const Icon(
+                Icons.share_rounded,
+                color: _HomeScreenState._accent,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
         CircleAvatar(
           radius: 26,
           backgroundColor: _HomeScreenState._softAccent,

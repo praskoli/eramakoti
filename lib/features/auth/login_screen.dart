@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:eramakoti/services/auth/google_sign_in_service.dart';
@@ -23,7 +24,45 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _isFacebookLoading = false;
 
+  static const bool _showFacebookLogin = true;
+
   bool get _isAnyLoading => _isGoogleLoading || _isFacebookLoading;
+
+  Future<void> _showAccountExistsDialog() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Account Already Exists',
+            textAlign: TextAlign.center,
+          ),
+          content: const Text(
+            'This email is already linked to an\n'
+                'eRamakoti account.\n\n'
+                'Please continue using the sign-in\n'
+                'method you used earlier.',
+            textAlign: TextAlign.center,
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _handleGoogleSignIn() async {
     if (_isAnyLoading) return;
@@ -35,17 +74,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      if (cred?.user != null) {
+      final user = cred?.user;
+      if (user != null) {
+        await FirestoreService.instance.bootstrapUser(user);
+
+        if (!mounted) return;
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => const MainBottomNavScreen(),
           ),
         );
       }
-    } catch (e) {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      if (e.code == 'account-exists-with-different-credential') {
+        await _showAccountExistsDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in failed. Please try again.'),
+          ),
+        );
+      }
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-in failed: $e')),
+        const SnackBar(
+          content: Text('Google sign-in failed. Please try again.'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -76,15 +134,39 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
-    } catch (e) {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      if (e.code == 'account-exists-with-different-credential') {
+        await _showAccountExistsDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Facebook sign-in failed. Please try again.'),
+          ),
+        );
+      }
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Facebook sign-in failed: $e')),
+        const SnackBar(
+          content: Text('Facebook sign-in failed. Please try again.'),
+        ),
       );
     } finally {
       if (mounted) {
         setState(() => _isFacebookLoading = false);
       }
+    }
+  }
+
+  Future<void> _openQtiLabsWebsite() async {
+    final url = Uri.parse('https://www.qtilabs.com/');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
     }
   }
 
@@ -106,9 +188,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   final poweredGap = isWide ? 36.0 : 28.0;
 
                   return ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(
-                      context,
-                    ).copyWith(scrollbars: false),
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      scrollbars: false,
+                    ),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
@@ -123,7 +205,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               SizedBox(height: topGap),
                               SizedBox(height: largeGap),
-
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: Image.asset(
@@ -132,9 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fit: BoxFit.contain,
                                 ),
                               ),
-
                               SizedBox(height: largeGap),
-
                               const Text(
                                 'eRamakoti',
                                 style: TextStyle(
@@ -143,9 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: LoginScreen.textDark,
                                 ),
                               ),
-
                               const SizedBox(height: 8),
-
                               const Text(
                                 'Digital Sri Rama Nama Writing',
                                 textAlign: TextAlign.center,
@@ -155,9 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-
                               SizedBox(height: largeGap),
-
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(
@@ -183,19 +258,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                           : _handleGoogleSignIn,
                                       isLoading: _isGoogleLoading,
                                     ),
-                                    SizedBox(height: betweenGap),
-                                    _FacebookLoginButton(
-                                      onPressed: _isAnyLoading
-                                          ? null
-                                          : _handleFacebookSignIn,
-                                      isLoading: _isFacebookLoading,
-                                    ),
+                                    if (_showFacebookLogin) ...[
+                                      SizedBox(height: betweenGap),
+                                      _FacebookLoginButton(
+                                        onPressed: _isAnyLoading
+                                            ? null
+                                            : _handleFacebookSignIn,
+                                        isLoading: _isFacebookLoading,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-
                               SizedBox(height: poweredGap),
-
                               const Text(
                                 'Powered by',
                                 style: TextStyle(
@@ -204,23 +279,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-
                               const SizedBox(height: 12),
-
                               MouseRegion(
                                 cursor: SystemMouseCursors.click,
                                 child: GestureDetector(
-                                  onTap: () async {
-                                    final url = Uri.parse(
-                                      'https://www.qtilabs.com/',
-                                    );
-                                    if (await canLaunchUrl(url)) {
-                                      await launchUrl(
-                                        url,
-                                        mode: LaunchMode.externalApplication,
-                                      );
-                                    }
-                                  },
+                                  onTap: _openQtiLabsWebsite,
                                   child: Image.asset(
                                     'assets/images/qtilabs.png',
                                     height: 42,
@@ -228,7 +291,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                               ),
-
                               const SizedBox(height: 12),
                             ],
                           ),
@@ -239,7 +301,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
             ),
-
             if (_isAnyLoading)
               AbsorbPointer(
                 absorbing: true,

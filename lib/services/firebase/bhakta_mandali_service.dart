@@ -460,12 +460,13 @@ class BhaktaMandaliService {
   }
 
   String buildInviteMessage(BhaktaMandali mandali) {
-    return 'Jai Shri Ram 🙏\n'
+    return 'Jai Shri Ram 🙏\n\n'
         'Join ${mandali.displayName} in eRamakoti.\n'
-        'Invite code: ${mandali.inviteCode}\n'
-        'Come, let us write Sri Rama Nama together.';
+        'Invite code: ${mandali.inviteCode}\n\n'
+        'Let us write Sri Rama Nama together.\n\n'
+        'Install the app:\n'
+        'https://play.google.com/store/apps/details?id=com.hindu.pooja';
   }
-
   Future<String> _generateUniqueInviteCode() async {
     for (var i = 0; i < 10; i++) {
       final code = _randomCode(8);

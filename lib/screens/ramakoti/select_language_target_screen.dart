@@ -27,8 +27,7 @@ class _SelectLanguageTargetScreenState
   ];
 
   final List<_TargetOption> _targets = const [
-    _TargetOption(label: '10 (Test)', value: 10),
-    _TargetOption(label: '108 (Test)', value: 108),
+    _TargetOption(label: '10 Ten', value: 10),
     _TargetOption(label: '1 Lakh', value: 100000),
     _TargetOption(label: '10 Lakh', value: 1000000),
     _TargetOption(label: '1 Crore', value: 10000000),

@@ -19,21 +19,35 @@ class GlobalMandaliLeaderboardScreen extends StatelessWidget {
         elevation: 0,
         title: const Text(
           'Global Mandali Leaderboard',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: StreamBuilder<List<BhaktaMandali>>(
         stream: BhaktaMandaliService.instance.watchGlobalLeaderboard(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Failed to load leaderboard.\n${snapshot.error}'));
+            return Center(
+              child: Text(
+                'Failed to load leaderboard.\n${snapshot.error}',
+              ),
+            );
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final items = snapshot.data ?? const <BhaktaMandali>[];
+          final rawItems = snapshot.data ?? const <BhaktaMandali>[];
+
+          final items = rawItems.where((item) {
+            final mandaliId = item.mandaliId.trim();
+            final displayName = item.displayName.trim();
+            return mandaliId.isNotEmpty && displayName.isNotEmpty;
+          }).toList();
+
           if (items.isEmpty) {
             return const Center(child: Text('No Mandalis yet.'));
           }
@@ -44,13 +58,27 @@ class GlobalMandaliLeaderboardScreen extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final item = items[index];
+
               return MandaliLeaderboardTile(
                 rank: index + 1,
                 mandali: item,
                 onTap: () {
+                  final mandaliId = item.mandaliId.trim();
+
+                  if (mandaliId.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('This Mandali is no longer available.'),
+                      ),
+                    );
+                    return;
+                  }
+
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => MandaliDetailScreen(mandaliId: item.mandaliId),
+                      builder: (_) => MandaliDetailScreen(
+                        mandaliId: mandaliId,
+                      ),
                     ),
                   );
                 },

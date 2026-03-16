@@ -42,6 +42,11 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
 
   int? _previewNextMalaAfterCompletedBatch;
 
+  Color _selectedInkColor = const Color(0xFF1A237E);
+  _PaperStyle _selectedPaperStyle = _PaperStyle.cleanWhite;
+  bool _handwritingMode = true;
+  bool _showWritingExperienceOptions = false;
+
   @override
   void initState() {
     super.initState();
@@ -115,8 +120,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
           setNewTargetButton: 'కొత్త లక్ష్యం',
           japaMalaCompletedMessage:
           '🙏 మీరు పవిత్రమైన 108 నామాల జపమాల పూర్తి చేశారు. శ్రీరాముని ఆశీస్సులు మీ భక్తిని మరింత బలపరచుగాక.',
-          blessingLine:
-          'శ్రీరాముడు మీ భక్తిని ఆశీర్వదించుగాక.',
+          blessingLine: 'శ్రీరాముడు మీ భక్తిని ఆశీర్వదించుగాక.',
           nextSacredStepLabel: 'తదుపరి పవిత్ర దశ:',
           onlyMoreToReachIt: 'దాన్ని చేరడానికి ఇంకా',
           continueWritingButton: 'రచన కొనసాగించండి',
@@ -132,8 +136,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
           setNewTargetButton: 'नया लक्ष्य',
           japaMalaCompletedMessage:
           '🙏 आपने 108 नामों की पवित्र जपमाला पूर्ण की है। श्रीराम आपके श्रद्धा को और गहन करें।',
-          blessingLine:
-          'श्री राम आपकी भक्ति को आशीर्वाद दें।',
+          blessingLine: 'श्री राम आपकी भक्ति को आशीर्वाद दें।',
           nextSacredStepLabel: 'अगला पवित्र चरण:',
           onlyMoreToReachIt: 'वहाँ पहुँचने के लिए अभी',
           continueWritingButton: 'लेखन जारी रखें',
@@ -149,8 +152,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
           setNewTargetButton: 'Set New Target',
           japaMalaCompletedMessage:
           '🙏 You have completed the sacred Japa Mala of 108 names. May Shri Ram deepen your devotion.',
-          blessingLine:
-          'May Shri Ram bless your devotion.',
+          blessingLine: 'May Shri Ram bless your devotion.',
           nextSacredStepLabel: 'Next sacred step:',
           onlyMoreToReachIt: 'Only',
           continueWritingButton: 'Continue Writing',
@@ -214,13 +216,10 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
       MaterialPageRoute(
         builder: (_) => SupportRamakotiScreen(
           source: 'writer_offer_support',
-          sourceMandaliId:
-          activeMandaliId.isEmpty ? null : activeMandaliId,
-          sourceMandaliName:
-          activeMandaliName.isEmpty ? null : activeMandaliName,
-          sourceChallengeId: activeMandaliChallengeId.isEmpty
-              ? null
-              : activeMandaliChallengeId,
+          sourceMandaliId: activeMandaliId.isEmpty ? null : activeMandaliId,
+          sourceMandaliName: activeMandaliName.isEmpty ? null : activeMandaliName,
+          sourceChallengeId:
+          activeMandaliChallengeId.isEmpty ? null : activeMandaliChallengeId,
         ),
       ),
     );
@@ -687,6 +686,235 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
     return '${meta.remainingInCurrentBatch} more in this Japa Mala • ${_formatIndianNumber(meta.remainingToTarget)} more to target';
   }
 
+  Widget _buildWritingExperienceCard() {
+    const inkOptions = <_InkOption>[
+      _InkOption('Blue', Color(0xFF1A237E)),
+      _InkOption('Black', Color(0xFF000000)),
+      _InkOption('Saffron', Color(0xFFFF8F00)),
+      _InkOption('Maroon', Color(0xFF800000)),
+      _InkOption('Green', Color(0xFF2E7D32)),
+    ];
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: _borderColor),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              setState(() {
+                _showWritingExperienceOptions = !_showWritingExperienceOptions;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.brush_rounded,
+                    size: 18,
+                    color: _accent,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Writing Experience',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1DE),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _showWritingExperienceOptions ? 'Hide' : 'Customize',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _showWritingExperienceOptions
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: _textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showWritingExperienceOptions) ...[
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ink Color',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                    inkOptions.map((option) {
+                      final selected =
+                          _selectedInkColor.value == option.color.value;
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedInkColor = option.color;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                            selected
+                                ? option.color.withOpacity(0.10)
+                                : const Color(0xFFF8F1E8),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: selected ? option.color : _borderColor,
+                              width: selected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  color: option.color,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.black.withOpacity(0.08),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                option.label,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight:
+                                  selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Paper Style',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                    _PaperStyle.values.map((style) {
+                      final selected = _selectedPaperStyle == style;
+                      return ChoiceChip(
+                        label: Text(style.label),
+                        selected: selected,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedPaperStyle = style;
+                          });
+                        },
+                        selectedColor: const Color(0xFFFFF1DE),
+                        backgroundColor: const Color(0xFFF8F1E8),
+                        labelStyle: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight:
+                          selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: _textPrimary,
+                        ),
+                        side: BorderSide(
+                          color: selected ? _accent : _borderColor,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    value: _handwritingMode,
+                    onChanged: (value) {
+                      setState(() {
+                        _handwritingMode = value;
+                      });
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    activeColor: _accent,
+                    title: const Text(
+                      'Handwriting Style',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Natural handwritten feel for the current writing',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser;
@@ -765,17 +993,19 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                           _previewNextMalaAfterCompletedBatch ==
                               meta.completedBatchCount;
 
-                  final displayMalaNumber = showNextMalaPreview
+                  final displayMalaNumber =
+                  showNextMalaPreview
                       ? meta.currentBatchNumber + 1
                       : meta.currentBatchNumber;
-                  final displayMalaProgress = showNextMalaPreview
-                      ? 0
-                      : meta.currentBatchProgress;
-                  final displayMalaProgressPercent = showNextMalaPreview
+                  final displayMalaProgress =
+                  showNextMalaPreview ? 0 : meta.currentBatchProgress;
+                  final displayMalaProgressPercent =
+                  showNextMalaPreview
                       ? 0.0
                       : meta.currentBatchProgressPercent;
 
-                  final targetText = meta.targetCount > 0
+                  final targetText =
+                  meta.targetCount > 0
                       ? _formatIndianNumber(meta.targetCount)
                       : 'Not selected';
                   final gridLabel = _localizedRamGridLabel(meta.language);
@@ -807,24 +1037,6 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                   color: _textSecondary,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Language: ${meta.languageLabel}  •  Japa Mala $displayMalaNumber  •  Count ${_formatIndianNumber(meta.currentRunCount)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _textSecondary,
-                                  height: 1.35,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Target: $targetText',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _textSecondary,
-                                  height: 1.35,
-                                ),
-                              ),
                               if (meta.activeMandaliName.trim().isNotEmpty) ...[
                                 const SizedBox(height: 10),
                                 Align(
@@ -839,8 +1051,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFFFF1DE),
-                                        borderRadius:
-                                        BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(999),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -886,8 +1097,9 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                   value: displayMalaProgressPercent,
                                   minHeight: 8,
                                   backgroundColor: _progressBg,
-                                  valueColor:
-                                  const AlwaysStoppedAnimation(_accent),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    _accent,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 5),
@@ -941,11 +1153,18 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
+                              _buildWritingExperienceCard(),
+                              const SizedBox(height: 10),
                               RepaintBoundary(
                                 child: _RamakotiGrid(
                                   filledCells: meta.currentBatchProgress,
                                   gridLabel: gridLabel,
                                   showNextMalaPreview: showNextMalaPreview,
+                                  inkColor: _selectedInkColor,
+                                  paperStyle: _selectedPaperStyle,
+                                  handwritingMode: _handwritingMode,
+                                  animateLatestFill:
+                                  _isWriting && !showNextMalaPreview,
                                 ),
                               ),
                               const SizedBox(height: 96),
@@ -1051,7 +1270,8 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _isWriting
+                  onPressed:
+                  _isWriting
                       ? null
                       : () async {
                     final meta =
@@ -1071,7 +1291,8 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: _isWriting
+                  child:
+                  _isWriting
                       ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -1083,10 +1304,13 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
                       : FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      ((_optimisticMeta ?? _latestMeta)?.isTargetCompleted ?? false)
+                      ((_optimisticMeta ?? _latestMeta)
+                          ?.isTargetCompleted ??
+                          false)
                           ? 'Set New Target'
                           : _localizedRamLabel(
-                        (_optimisticMeta ?? _latestMeta)?.language ?? '',
+                        (_optimisticMeta ?? _latestMeta)?.language ??
+                            '',
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 1,
@@ -1109,9 +1333,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
 class _GlobalRamCountCard extends StatelessWidget {
   final int count;
 
-  const _GlobalRamCountCard({
-    required this.count,
-  });
+  const _GlobalRamCountCard({required this.count});
 
   String _formatIndianNumber(int value) {
     final number = value.toString();
@@ -1179,24 +1401,61 @@ class _GlobalRamCountCard extends StatelessWidget {
   }
 }
 
-class _RamakotiGrid extends StatelessWidget {
+enum _PaperStyle { notebook, parchment, manuscript, cleanWhite }
+
+extension _PaperStyleLabel on _PaperStyle {
+  String get label {
+    switch (this) {
+      case _PaperStyle.notebook:
+        return 'Notebook';
+      case _PaperStyle.parchment:
+        return 'Parchment';
+      case _PaperStyle.manuscript:
+        return 'Temple';
+      case _PaperStyle.cleanWhite:
+        return 'White';
+    }
+  }
+}
+
+class _InkOption {
+  final String label;
+  final Color color;
+
+  const _InkOption(this.label, this.color);
+}
+
+class _RamakotiGrid extends StatefulWidget {
   final int filledCells;
   final String gridLabel;
   final bool showNextMalaPreview;
+  final Color inkColor;
+  final _PaperStyle paperStyle;
+  final bool handwritingMode;
+  final bool animateLatestFill;
 
   const _RamakotiGrid({
     required this.filledCells,
     required this.gridLabel,
     required this.showNextMalaPreview,
+    required this.inkColor,
+    required this.paperStyle,
+    required this.handwritingMode,
+    required this.animateLatestFill,
   });
 
+  @override
+  State<_RamakotiGrid> createState() => _RamakotiGridState();
+}
+
+class _RamakotiGridState extends State<_RamakotiGrid> {
   @override
   Widget build(BuildContext context) {
     const int totalCells = 108;
     const int columns = 6;
     const int totalRows = totalCells ~/ columns;
 
-    if (showNextMalaPreview) {
+    if (widget.showNextMalaPreview) {
       return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -1208,21 +1467,15 @@ class _RamakotiGrid extends StatelessWidget {
           childAspectRatio: 1.0,
         ),
         itemBuilder: (context, index) {
-          return Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _RamakotiWriterScreenState._gridEmpty,
-              border: Border.all(
-                color: _RamakotiWriterScreenState._borderColor,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          return _PaperStyledCell(
+            paperStyle: widget.paperStyle,
+            isFilled: false,
           );
         },
       );
     }
 
-    if (filledCells >= totalCells) {
+    if (widget.filledCells >= totalCells) {
       return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -1234,30 +1487,13 @@ class _RamakotiGrid extends StatelessWidget {
           childAspectRatio: 1.0,
         ),
         itemBuilder: (context, index) {
-          return Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _RamakotiWriterScreenState._gridFilled,
-              border: Border.all(
-                color: _RamakotiWriterScreenState._borderColor,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Text(
-                  gridLabel,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _RamakotiWriterScreenState._textPrimary,
-                    height: 1.1,
-                  ),
-                ),
-              ),
+          return _PaperStyledCell(
+            paperStyle: widget.paperStyle,
+            isFilled: true,
+            child: _GridCellText(
+              text: widget.gridLabel,
+              inkColor: widget.inkColor,
+              handwritingMode: widget.handwritingMode,
             ),
           );
         },
@@ -1265,10 +1501,11 @@ class _RamakotiGrid extends StatelessWidget {
     }
 
     final int currentRow =
-    filledCells <= 0 ? 0 : ((filledCells - 1) ~/ columns);
+    widget.filledCells <= 0 ? 0 : ((widget.filledCells - 1) ~/ columns);
     final int startRow = currentRow <= 0 ? 0 : currentRow - 1;
     final int visibleRows = totalRows - startRow;
     final int visibleItemCount = visibleRows * columns;
+    final int latestFilledIndex = widget.filledCells - 1;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -1282,41 +1519,369 @@ class _RamakotiGrid extends StatelessWidget {
       ),
       itemBuilder: (context, visibleIndex) {
         final int actualIndex = (startRow * columns) + visibleIndex;
-        final bool isFilled = actualIndex < filledCells;
+        final bool isFilled = actualIndex < widget.filledCells;
+        final bool isLatestAnimatedCell =
+            widget.animateLatestFill &&
+                isFilled &&
+                actualIndex == latestFilledIndex;
 
-        return Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isFilled
-                ? _RamakotiWriterScreenState._gridFilled
-                : _RamakotiWriterScreenState._gridEmpty,
-            border: Border.all(
-              color: _RamakotiWriterScreenState._borderColor,
-            ),
-            borderRadius: BorderRadius.circular(10),
+        if (!isFilled) {
+          return _PaperStyledCell(
+            paperStyle: widget.paperStyle,
+            isFilled: false,
+          );
+        }
+
+        if (isLatestAnimatedCell) {
+          return _AnimatedWritingCell(
+            text: widget.gridLabel,
+            inkColor: widget.inkColor,
+            paperStyle: widget.paperStyle,
+            handwritingMode: widget.handwritingMode,
+          );
+        }
+
+        return _PaperStyledCell(
+          paperStyle: widget.paperStyle,
+          isFilled: true,
+          child: _GridCellText(
+            text: widget.gridLabel,
+            inkColor: widget.inkColor,
+            handwritingMode: widget.handwritingMode,
           ),
-          child: isFilled
-              ? FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Text(
-                gridLabel,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: _RamakotiWriterScreenState._textPrimary,
-                  height: 1.1,
-                ),
-              ),
-            ),
-          )
-              : const SizedBox.shrink(),
         );
       },
     );
   }
+}
+
+class _PaperStyledCell extends StatelessWidget {
+  final _PaperStyle paperStyle;
+  final bool isFilled;
+  final Widget? child;
+
+  const _PaperStyledCell({
+    required this.paperStyle,
+    required this.isFilled,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: _paperDecoration(paperStyle),
+          ),
+          if (paperStyle == _PaperStyle.notebook)
+            const CustomPaint(
+              painter: _NotebookLinesPainter(),
+            ),
+          if (paperStyle == _PaperStyle.manuscript)
+            const CustomPaint(
+              painter: _TempleManuscriptPainter(),
+            ),
+          if (isFilled)
+            Container(
+              color: const Color(0x14FF9E2C),
+            ),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _RamakotiWriterScreenState._borderColor,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          if (child != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: child!,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _paperDecoration(_PaperStyle style) {
+    switch (style) {
+      case _PaperStyle.notebook:
+        return BoxDecoration(
+          color: const Color(0xFFFFFCF5),
+          borderRadius: BorderRadius.circular(10),
+        );
+      case _PaperStyle.parchment:
+        return BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFF5E7C8),
+              Color(0xFFEAD6AA),
+            ],
+          ),
+        );
+      case _PaperStyle.manuscript:
+        return BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          gradient: const RadialGradient(
+            center: Alignment.center,
+            radius: 1.1,
+            colors: [
+              Color(0xFFF8EAC9),
+              Color(0xFFE8D4A0),
+            ],
+          ),
+        );
+      case _PaperStyle.cleanWhite:
+        return BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        );
+    }
+  }
+}
+
+class _GridCellText extends StatelessWidget {
+  final String text;
+  final Color inkColor;
+  final bool handwritingMode;
+
+  const _GridCellText({
+    required this.text,
+    required this.inkColor,
+    required this.handwritingMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: _gridTextStyle(
+          inkColor: inkColor,
+          handwritingMode: handwritingMode,
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedWritingCell extends StatefulWidget {
+  final String text;
+  final Color inkColor;
+  final _PaperStyle paperStyle;
+  final bool handwritingMode;
+
+  const _AnimatedWritingCell({
+    required this.text,
+    required this.inkColor,
+    required this.paperStyle,
+    required this.handwritingMode,
+  });
+
+  @override
+  State<_AnimatedWritingCell> createState() => _AnimatedWritingCellState();
+}
+
+class _AnimatedWritingCellState extends State<_AnimatedWritingCell>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final progress = Curves.easeOut.transform(_controller.value);
+            final penLeft = 8 + ((constraints.maxWidth - 30) * progress);
+            final penTop =
+                (constraints.maxHeight * 0.18) +
+                    (math.sin(progress * math.pi * 4) * 2.0);
+            final penOpacity =
+            progress < 0.82
+                ? 1.0
+                : (1.0 - ((progress - 0.82) / 0.18)).clamp(0.0, 1.0);
+            final trailWidth = (constraints.maxWidth - 18) * progress;
+
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                _PaperStyledCell(
+                  paperStyle: widget.paperStyle,
+                  isFilled: true,
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  top: constraints.maxHeight * 0.52,
+                  child: Opacity(
+                    opacity: 0.18,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: trailWidth,
+                        height: 1.8,
+                        decoration: BoxDecoration(
+                          color: widget.inkColor,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: ClipRect(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: progress.clamp(0.0, 1.0),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            widget.text,
+                            textAlign: TextAlign.center,
+                            style: _gridTextStyle(
+                              inkColor: widget.inkColor,
+                              handwritingMode: widget.handwritingMode,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: penLeft,
+                  top: penTop,
+                  child: Opacity(
+                    opacity: penOpacity,
+                    child: Transform.rotate(
+                      angle:
+                      -0.45 + (math.sin(progress * math.pi * 2) * 0.08),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: widget.inkColor.withOpacity(0.92),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+TextStyle _gridTextStyle({
+  required Color inkColor,
+  required bool handwritingMode,
+}) {
+  return TextStyle(
+    fontSize: handwritingMode ? 11.5 : 10,
+    fontWeight: FontWeight.w600,
+    fontStyle: handwritingMode ? FontStyle.italic : FontStyle.normal,
+    letterSpacing: handwritingMode ? 0.2 : 0,
+    height: 1.05,
+    color: inkColor,
+    shadows:
+    handwritingMode
+        ? [
+      Shadow(
+        color: inkColor.withOpacity(0.10),
+        blurRadius: 1,
+        offset: const Offset(0.4, 0.4),
+      ),
+    ]
+        : null,
+  );
+}
+
+class _NotebookLinesPainter extends CustomPainter {
+  const _NotebookLinesPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+    Paint()
+      ..color = const Color(0x33007AFF)
+      ..strokeWidth = 0.8;
+
+    const gap = 11.0;
+    for (double y = 10; y < size.height; y += gap) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _TempleManuscriptPainter extends CustomPainter {
+  const _TempleManuscriptPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final borderPaint =
+    Paint()
+      ..color = const Color(0x668B5E00)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+
+    final innerPaint =
+    Paint()
+      ..color = const Color(0x22A06B00)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(10),
+    );
+    final innerRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(4, 4, size.width - 8, size.height - 8),
+      const Radius.circular(8),
+    );
+
+    canvas.drawRRect(rect, borderPaint);
+    canvas.drawRRect(innerRect, innerPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _WriterLocalizedText {

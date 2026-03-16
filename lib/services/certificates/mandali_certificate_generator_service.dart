@@ -134,169 +134,191 @@ class MandaliCertificateGeneratorService {
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(96, 72, 96, 48),
+                padding: const pw.EdgeInsets.fromLTRB(96, 78, 96, 72),
                 child: pw.Stack(
                   children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                      children: [
-                        pw.Text(
-                          'eRamakoti',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 20,
-                            color: PdfColor.fromInt(0xFFB27A22),
-                            fontWeight: pw.FontWeight.bold,
-                          ),
+                    pw.Center(
+                      child: pw.SizedBox(
+                        width: 600,
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                          children: [
+                            pw.SizedBox(height: 10),
+                            pw.Text(
+                              'eRamakoti',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 18,
+                                color: PdfColor.fromInt(0xFFB27A22),
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              'Bhakta Mandali Certificate',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 24,
+                                color: heading,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 10),
+                            pw.Center(
+                              child: pw.Container(
+                                width: 340,
+                                height: 2,
+                                color: accent,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.SizedBox(height: 18),
+                            pw.Text(
+                              'This certificate is respectfully awarded to',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 15,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 14),
+                            pw.Center(
+                              child: pw.SizedBox(
+                                width: 500,
+                                height: 40,
+                                child: pw.FittedBox(
+                                  fit: pw.BoxFit.scaleDown,
+                                  child: pw.Text(
+                                    input.mandaliName,
+                                    textAlign: pw.TextAlign.center,
+                                    style: pw.TextStyle(
+                                      font: font,
+                                      fontSize: 30,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: heading,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            pw.SizedBox(height: 8),
+                            pw.Center(
+                              child: pw.Container(
+                                width: 430,
+                                height: 1.5,
+                                color: accent,
+                              ),
+                            ),
+                            pw.SizedBox(height: 14),
+                            pw.Text(
+                              'For successfully completing the Mandali challenge',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 15,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 8),
+                            pw.Center(
+                              child: pw.SizedBox(
+                                width: 500,
+                                height: 34,
+                                child: pw.FittedBox(
+                                  fit: pw.BoxFit.scaleDown,
+                                  child: pw.Text(
+                                    input.challengeName,
+                                    textAlign: pw.TextAlign.center,
+                                    style: pw.TextStyle(
+                                      font: font,
+                                      fontSize: 23,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: heading,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.Text(
+                              'Challenge Target: $targetText Sri Rama Namas',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 15,
+                                fontWeight: pw.FontWeight.bold,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              'Participating Devotees: $recipientsText',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 13,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.Text(
+                              'Completed in devotion, unity, and collective Nama smarana.',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 13,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.Text(
+                              'Jai Shri Ram',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 16,
+                                fontWeight: pw.FontWeight.bold,
+                                color: heading,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.Text(
+                              'Date: $dateText',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                font: font,
+                                fontSize: 12,
+                                color: body,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            pw.Center(
+                              child: pw.SizedBox(
+                                width: 360,
+                                height: 14,
+                                child: pw.FittedBox(
+                                  fit: pw.BoxFit.scaleDown,
+                                  child: pw.Text(
+                                    'Certificate ID: ${input.certificateId}',
+                                    textAlign: pw.TextAlign.center,
+                                    style: pw.TextStyle(
+                                      font: font,
+                                      fontSize: 11,
+                                      color: soft,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          'Bhakta Mandali Certificate',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 28,
-                            color: heading,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                        pw.SizedBox(height: 10),
-                        pw.Center(
-                          child: pw.Container(
-                            width: 360,
-                            height: 2,
-                            color: accent,
-                          ),
-                        ),
-                        pw.SizedBox(height: 12),
-                        pw.Text(
-                          'With the divine blessings of Lord Sri Rama',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 13,
-                            color: soft,
-                          ),
-                        ),
-                        pw.SizedBox(height: 20),
-                        pw.Text(
-                          'This certificate is respectfully awarded to',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 15,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 16),
-                        pw.Text(
-                          input.mandaliName,
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 30,
-                            fontWeight: pw.FontWeight.bold,
-                            color: heading,
-                          ),
-                        ),
-                        pw.SizedBox(height: 8),
-                        pw.Center(
-                          child: pw.Container(
-                            width: 420,
-                            height: 1.5,
-                            color: accent,
-                          ),
-                        ),
-                        pw.SizedBox(height: 16),
-                        pw.Text(
-                          'For successfully completing the Mandali challenge',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 15,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 10),
-                        pw.Text(
-                          input.challengeName,
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 23,
-                            fontWeight: pw.FontWeight.bold,
-                            color: heading,
-                          ),
-                        ),
-                        pw.SizedBox(height: 12),
-                        pw.Text(
-                          'Challenge Target: $targetText Sri Rama Namas',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 15,
-                            fontWeight: pw.FontWeight.bold,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          'Participating Devotees: $recipientsText',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 13,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 14),
-                        pw.Text(
-                          'Completed in devotion, unity, and collective Nama smarana.',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 13,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 14),
-                        pw.Text(
-                          'Jai Shri Ram',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 16,
-                            fontWeight: pw.FontWeight.bold,
-                            color: heading,
-                          ),
-                        ),
-                        pw.SizedBox(height: 10),
-                        pw.Text(
-                          'Date: $dateText',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 12,
-                            color: body,
-                          ),
-                        ),
-                        pw.SizedBox(height: 6),
-                        pw.Text(
-                          'Certificate ID: ${input.certificateId}',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            font: font,
-                            fontSize: 11,
-                            color: soft,
-                          ),
-                        ),
-                        pw.SizedBox(height: 32),
-                      ],
+                      ),
                     ),
                     pw.Positioned(
-                      right: 0,
-                      bottom: 150,
+                      right: 8,
+                      top: 205,
                       child: pw.Container(
                         width: 110,
                         padding: const pw.EdgeInsets.all(8),

@@ -14,12 +14,31 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
   static const Color _bgColor = Color(0xFFF8F2E8);
   static const Color _accent = Color(0xFFFF9E2C);
 
+  static const List<String> _categories = <String>[
+    'Community',
+    'Temple',
+    'Youth',
+    'Town',
+    'School',
+    'Family',
+    'Bhajan Group',
+  ];
+
+  static const List<_ChallengeTargetOption> _challengeTargets =
+  <_ChallengeTargetOption>[
+    _ChallengeTargetOption(label: '10 Ten', value: 10),
+    _ChallengeTargetOption(label: '1 Lakh', value: 100000),
+    _ChallengeTargetOption(label: '10 Lakh', value: 1000000),
+    _ChallengeTargetOption(label: '1 Crore', value: 10000000),
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _categoryController = TextEditingController(text: 'Community');
   final _descriptionController = TextEditingController();
-  final _challengeTitleController = TextEditingController(text: 'Rama Nama Challenge');
-  final _challengeTargetController = TextEditingController(text: '108');
+  final _challengeTitleController = TextEditingController();
+
+  String? _selectedCategory;
+  int? _selectedChallengeTarget = 100000;
 
   bool _isPublic = true;
   bool _saving = false;
@@ -29,10 +48,8 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _categoryController.dispose();
     _descriptionController.dispose();
     _challengeTitleController.dispose();
-    _challengeTargetController.dispose();
     super.dispose();
   }
 
@@ -71,10 +88,10 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
   Future<void> _create() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final target = int.tryParse(_challengeTargetController.text.trim());
+    final target = _selectedChallengeTarget;
     if (target == null || target <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid challenge target.')),
+        const SnackBar(content: Text('Please select a valid challenge target.')),
       );
       return;
     }
@@ -84,7 +101,7 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
     try {
       await BhaktaMandaliService.instance.createMandali(
         baseName: _nameController.text.trim(),
-        category: _categoryController.text.trim(),
+        category: (_selectedCategory ?? '').trim(),
         description: _descriptionController.text.trim(),
         isPublic: _isPublic,
         challengeTitle: _challengeTitleController.text.trim(),
@@ -167,12 +184,25 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
               },
             ),
             const SizedBox(height: 12),
-            _field(
-              controller: _categoryController,
+            _dropdownField<String>(
+              value: _selectedCategory,
               label: 'Category',
-              hint: 'Ex: Town, School, Youth, Temple',
+              hint: 'Select category',
+              items: _categories
+                  .map(
+                    (category) => DropdownMenuItem<String>(
+                  value: category,
+                  child: Text(category),
+                ),
+              )
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedCategory = value;
+                });
+              },
               validator: (value) {
-                if ((value ?? '').trim().isEmpty) return 'Enter category';
+                if ((value ?? '').trim().isEmpty) return 'Select category';
                 return null;
               },
             ),
@@ -188,7 +218,9 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
               value: _isPublic,
               activeColor: _accent,
               title: const Text('Public discoverable'),
-              subtitle: const Text('Allow devotees to discover this Mandali publicly.'),
+              subtitle: const Text(
+                'Allow devotees to discover this Mandali publicly.',
+              ),
               contentPadding: EdgeInsets.zero,
               onChanged: (value) => setState(() => _isPublic = value),
             ),
@@ -201,22 +233,35 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
             _field(
               controller: _challengeTitleController,
               label: 'Challenge Title',
-              hint: 'Ex: 10,000 Rama Nama Challenge',
+              hint: 'Ex: Rama Nama Challenge',
               validator: (value) {
-                if ((value ?? '').trim().isEmpty) return 'Enter challenge title';
+                if ((value ?? '').trim().isEmpty) {
+                  return 'Enter challenge title';
+                }
                 return null;
               },
             ),
             const SizedBox(height: 12),
-            _field(
-              controller: _challengeTargetController,
+            _dropdownField<int>(
+              value: _selectedChallengeTarget,
               label: 'Challenge Target',
-              hint: 'Ex: 108, 1000, 100000',
-              keyboardType: TextInputType.number,
+              hint: 'Select challenge target',
+              items: _challengeTargets
+                  .map(
+                    (option) => DropdownMenuItem<int>(
+                  value: option.value,
+                  child: Text(option.label),
+                ),
+              )
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedChallengeTarget = value;
+                });
+              },
               validator: (value) {
-                final target = int.tryParse((value ?? '').trim());
-                if (target == null || target <= 0) {
-                  return 'Enter a valid positive target';
+                if (value == null || value <= 0) {
+                  return 'Select challenge target';
                 }
                 return null;
               },
@@ -254,7 +299,10 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
                     ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
                     : const Text('Create Bhakta Mandali'),
               ),
@@ -293,6 +341,33 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
     );
   }
 
+  Widget _dropdownField<T>({
+    required T? value,
+    required String label,
+    required String hint,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    String? Function(T?)? validator,
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      isExpanded: true,
+    );
+  }
+
   Widget _dateCard({
     required String label,
     required String value,
@@ -310,7 +385,10 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12.5, color: Colors.black54)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+            ),
             const SizedBox(height: 6),
             Text(
               value,
@@ -321,4 +399,14 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
       ),
     );
   }
+}
+
+class _ChallengeTargetOption {
+  final String label;
+  final int value;
+
+  const _ChallengeTargetOption({
+    required this.label,
+    required this.value,
+  });
 }
