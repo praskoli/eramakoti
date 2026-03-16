@@ -6,106 +6,153 @@ class DonationService {
 
   static final DonationService instance = DonationService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// USER DONATIONS COLLECTION
-  CollectionReference<Map<String, dynamic>> get _userDonations =>
-      _db
-          .collection('users')
-          .doc(_auth.currentUser!.uid)
-          .collection('donations');
+  User? get _currentUser => _auth.currentUser;
 
-  /// GLOBAL SUPPORT WALL
-  CollectionReference<Map<String, dynamic>> get _supportWall =>
-      _db.collection('support_wall');
+  CollectionReference<Map<String, dynamic>> _userDonationsRef(String uid) {
+    return _firestore.collection('users').doc(uid).collection('donations');
+  }
 
-  /// CREATE DONATION
+  CollectionReference<Map<String, dynamic>> get _donationsRef {
+    final user = _currentUser;
+    if (user == null) {
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'no-current-user',
+        message: 'No authenticated user found.',
+      );
+    }
+    return _userDonationsRef(user.uid);
+  }
+
   Future<String> createDonation({
     required int amount,
     required String source,
     required String note,
-    bool anonymous = false,
-    String supporterName = '',
-    String supporterMessage = '',
-
-    /// INDIVIDUAL | MANDALI
-    String supportType = 'individual',
-
-    /// OPTIONAL MANDALI CONTEXT
+    required bool anonymous,
+    required String supporterName,
+    required String supporterMessage,
+    required String supportType,
     String? sourceMandaliId,
     String? sourceMandaliName,
     String? sourceChallengeId,
+    String? transactionRef,
+    String? paymentMethod,
+    String? paymentStatus,
+    String? upiUrl,
   }) async {
-    final uid = _auth.currentUser!.uid;
+    final user = _currentUser;
+    if (user == null) {
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'no-current-user',
+        message: 'No authenticated user found.',
+      );
+    }
 
-    final doc = _userDonations.doc();
+    final doc = _donationsRef.doc();
+    final now = FieldValue.serverTimestamp();
+
+    final cleanName = supporterName.trim();
+    final cleanMessage = supporterMessage.trim();
 
     await doc.set({
       'donationId': doc.id,
-      'uid': uid,
-
-      'amount': amount,
-      'note': note,
-      'source': source,
-
-      /// SUPPORT TYPE
-      'supportType': supportType,
-
-      /// Mandali context
-      'sourceMandaliId': sourceMandaliId,
-      'sourceMandaliName': sourceMandaliName,
-      'sourceChallengeId': sourceChallengeId,
-
-      'supporterName': supporterName,
-      'supporterMessage': supporterMessage,
+      'uid': user.uid,
+      'amount': amount <= 0 ? 1 : amount,
+      'status': (paymentStatus ?? 'initiated').trim(),
+      'source': source.trim(),
+      'note': note.trim(),
       'anonymous': anonymous,
-
-      /// pending → returned → verified
-      'status': 'pending',
-
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'supportType': supportType.trim(),
+      'name': anonymous
+          ? 'Anonymous'
+          : (cleanName.isEmpty ? 'Devotee' : cleanName),
+      'message': cleanMessage,
+      'supporterName': cleanName,
+      'supporterMessage': cleanMessage,
+      'sourceMandaliId': (sourceMandaliId ?? '').trim(),
+      'sourceMandaliName': (sourceMandaliName ?? '').trim(),
+      'sourceChallengeId': (sourceChallengeId ?? '').trim(),
+      'transactionRef': (transactionRef ?? '').trim(),
+      'paymentMethod': (paymentMethod ?? 'upi').trim(),
+      'upiUrl': (upiUrl ?? '').trim(),
+      'adminNote': '',
+      'createdAt': now,
+      'updatedAt': now,
+      'timestamp': now,
     });
 
     return doc.id;
   }
 
-  /// MARK DONATION RETURNED AFTER UPI APP
-  Future<void> markDonationReturned({
+  Future<void> updateDonationStatus({
     required String donationId,
+    required String status,
+    String? source,
+    String? adminNote,
+    String? transactionRef,
+    String? paymentMethod,
+    String? upiUrl,
   }) async {
-    final ref = _userDonations.doc(donationId);
-
-    await ref.update({
-      'status': 'returned',
+    final update = <String, dynamic>{
+      'status': status.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (source != null && source.trim().isNotEmpty) {
+      update['source'] = source.trim();
+    }
+    if (adminNote != null) {
+      update['adminNote'] = adminNote.trim();
+    }
+    if (transactionRef != null && transactionRef.trim().isNotEmpty) {
+      update['transactionRef'] = transactionRef.trim();
+    }
+    if (paymentMethod != null && paymentMethod.trim().isNotEmpty) {
+      update['paymentMethod'] = paymentMethod.trim();
+    }
+    if (upiUrl != null && upiUrl.trim().isNotEmpty) {
+      update['upiUrl'] = upiUrl.trim();
+    }
+
+    await _donationsRef.doc(donationId).update(update);
   }
 
-  /// WATCH SUPPORT WALL (GLOBAL)
+  Future<void> markUserConfirmedPayment({
+    required String donationId,
+    String? source,
+  }) async {
+    await updateDonationStatus(
+      donationId: donationId,
+      status: 'returned_from_upi',
+      source: source,
+    );
+  }
+
+  Future<void> markReturnedFromUpi({
+    required String donationId,
+    String? source,
+  }) async {
+    await updateDonationStatus(
+      donationId: donationId,
+      status: 'returned_from_upi',
+      source: source,
+    );
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportHistory() {
+    return _donationsRef.orderBy('createdAt', descending: true).snapshots();
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportWall({
-    int limit = 20,
+    int limit = 8,
   }) {
-    return _supportWall
-        .where('verified', isEqualTo: true)
-        .orderBy('timestamp', descending: true)
-        .limit(limit)
-        .snapshots();
-  }
-
-  /// USER DONATION HISTORY
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchMyDonations() {
-    return _userDonations
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  /// SUPPORT HISTORY (ALIAS USED BY SUPPORT SCREEN)
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportHistory({
-    int limit = 50,
-  }) {
-    return _userDonations
+    return _firestore
+        .collectionGroup('donations')
+        .where('status', whereIn: ['returned_from_upi', 'verified'])
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots();

@@ -1,15 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../features/bhakta_mandali/screens/bhakta_mandali_home_screen.dart';
 import '../../models/ramakoti_meta.dart';
+import '../../screens/ramakoti/ramakoti_writer_screen.dart';
+import '../../screens/ramakoti/select_language_target_screen.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/ramakoti_service.dart';
-import '../../features/bhakta_mandali/screens/bhakta_mandali_home_screen.dart';
 import '../../services/notifications/reminder_service.dart';
-import '/../screens/ramakoti/ramakoti_writer_screen.dart';
-import '/../screens/ramakoti/select_language_target_screen.dart';
+import '../../services/temples/temple_context_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _progressBg = Color(0xFFF0E7DB);
+
   ReminderInfo? _reminderInfo;
 
   @override
@@ -109,10 +112,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _mandaliSubtitle(RamakotiMeta meta) {
+  String _mandaliSubtitle(RamakotiMeta meta, TempleContextService templeContext) {
     if (meta.activeMandaliName.trim().isNotEmpty) {
       return 'Active: ${meta.activeMandaliName}';
     }
+
+    final templeName = templeContext.currentTemple?.name.trim() ?? '';
+    if (templeName.isNotEmpty) {
+      return 'Create, join, and contribute to devotional groups for $templeName.';
+    }
+
     return 'Create, join, and contribute to devotional groups.';
   }
 
@@ -456,6 +465,9 @@ $appLink
       );
     }
 
+    final templeContext = context.watch<TempleContextService>();
+    final currentTemple = templeContext.currentTemple;
+
     return Scaffold(
       backgroundColor: _bgColor,
       body: SafeArea(
@@ -488,6 +500,8 @@ $appLink
 
                 return RefreshIndicator(
                   onRefresh: () async {
+                    await templeContext.refreshCurrentTemple();
+                    await _loadReminderInfo();
                     setState(() {});
                     await Future<void>.delayed(
                       const Duration(milliseconds: 350),
@@ -508,8 +522,11 @@ $appLink
                               photoUrl: user.photoURL,
                               onShare: _shareApp,
                             ),
+                            if (currentTemple != null) ...[
+                              const SizedBox(height: 14),
+                              TempleContextBanner(templeContext: templeContext),
+                            ],
                             const SizedBox(height: 18),
-
                             _HeroActionCard(
                               title: meta.isTargetCompleted
                                   ? 'Target completed'
@@ -521,7 +538,6 @@ $appLink
                               isCompleted: meta.isTargetCompleted,
                             ),
                             const SizedBox(height: 16),
-
                             InkWell(
                               borderRadius: BorderRadius.circular(22),
                               onTap: () => _openBhaktaMandaliHub(context),
@@ -553,9 +569,11 @@ $appLink
                                         crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                         children: [
-                                          const Text(
-                                            'Bhakta Mandali',
-                                            style: TextStyle(
+                                          Text(
+                                            currentTemple != null
+                                                ? 'Temple Bhakta Mandali'
+                                                : 'Bhakta Mandali',
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w800,
                                               color: _textPrimary,
@@ -563,7 +581,7 @@ $appLink
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            _mandaliSubtitle(meta),
+                                            _mandaliSubtitle(meta, templeContext),
                                             style: const TextStyle(
                                               fontSize: 13,
                                               color: _textSecondary,
@@ -582,7 +600,6 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             StreamBuilder<int>(
                               stream:
                               RamakotiService.instance.watchGlobalRamCount(),
@@ -607,9 +624,11 @@ $appLink
                                       crossAxisAlignment:
                                       CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'Global Ram Count',
-                                          style: TextStyle(
+                                        Text(
+                                          currentTemple != null
+                                              ? 'Global Ram Count • ${currentTemple.name}'
+                                              : 'Global Ram Count',
+                                          style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                             color: _textSecondary,
@@ -625,9 +644,11 @@ $appLink
                                           ),
                                         ),
                                         const SizedBox(height: 4),
-                                        const Text(
-                                          'Jai Shri Ram written across devotees',
-                                          style: TextStyle(
+                                        Text(
+                                          currentTemple != null
+                                              ? 'Jai Shri Ram written across devotees in temple and global eRamakoti seva'
+                                              : 'Jai Shri Ram written across devotees',
+                                          style: const TextStyle(
                                             fontSize: 12,
                                             color: _textSecondary,
                                           ),
@@ -639,7 +660,6 @@ $appLink
                               },
                             ),
                             const SizedBox(height: 16),
-
                             Row(
                               children: [
                                 Expanded(
@@ -662,7 +682,6 @@ $appLink
                               ],
                             ),
                             const SizedBox(height: 12),
-
                             Row(
                               children: [
                                 Expanded(
@@ -684,7 +703,6 @@ $appLink
                               ],
                             ),
                             const SizedBox(height: 16),
-
                             _SectionCard(
                               title: 'Current Progress',
                               child: Column(
@@ -773,7 +791,6 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             _SectionCard(
                               title: 'Reminder',
                               trailing: TextButton(
@@ -815,9 +832,10 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             _SectionCard(
-                              title: 'Maa Asayam',
+                              title: currentTemple?.homeWelcomeText?.trim().isNotEmpty == true
+                                  ? 'Temple Message'
+                                  : 'Maa Asayam',
                               child: introSnapshot.connectionState ==
                                   ConnectionState.waiting
                                   ? const Padding(
@@ -828,9 +846,11 @@ $appLink
                                 ),
                               )
                                   : Text(
-                                maAsayamText.isEmpty
+                                currentTemple?.homeWelcomeText?.trim().isNotEmpty == true
+                                    ? currentTemple!.homeWelcomeText!.trim()
+                                    : (maAsayamText.isEmpty
                                     ? 'Maa Asayam content not available.'
-                                    : maAsayamText,
+                                    : maAsayamText),
                                 style: const TextStyle(
                                   fontSize: 15,
                                   height: 1.6,
@@ -839,7 +859,6 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             _SectionCard(
                               title: 'Sacred Milestones',
                               child: Wrap(
@@ -874,7 +893,6 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             _SectionCard(
                               title: 'Journey Highlights',
                               child: Column(
@@ -906,7 +924,6 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 24),
-
                             SizedBox(
                               width: double.infinity,
                               height: 58,
@@ -942,6 +959,85 @@ $appLink
         ),
       ),
     );
+  }
+}
+
+class TempleContextBanner extends StatelessWidget {
+  const TempleContextBanner({
+    super.key,
+    required this.templeContext,
+  });
+
+  final TempleContextService templeContext;
+
+  @override
+  Widget build(BuildContext context) {
+    final temple = templeContext.currentTemple;
+    if (temple == null) {
+      return const SizedBox.shrink();
+
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE6C89C)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(
+                Icons.account_balance_rounded,
+                color: Color(0xFF8A4B08),
+                size: 18,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Temple Mode Active',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A4B08),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            temple.name,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _HomeScreenState._textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            temple.address.isNotEmpty ? temple.address : temple.city,
+            style: const TextStyle(
+              fontSize: 13,
+              color: _HomeScreenState._textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Support, Mandali experience, and future temple features will follow this temple context.',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: _HomeScreenState._textSecondary,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+
   }
 }
 
@@ -1289,7 +1385,8 @@ class _MilestoneChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: reached ? _HomeScreenState._softAccent : const Color(0xFFF7F3ED),
+        color:
+        reached ? _HomeScreenState._softAccent : const Color(0xFFF7F3ED),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: reached

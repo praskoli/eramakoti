@@ -29,8 +29,11 @@ class SupportMandaliScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser;
+
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('No authenticated user')));
+      return const Scaffold(
+        body: Center(child: Text('No authenticated user')),
+      );
     }
 
     return Scaffold(
@@ -47,13 +50,21 @@ class SupportMandaliScreen extends StatelessWidget {
         stream: BhaktaMandaliService.instance.watchMyMandalis(user.uid),
         builder: (context, membershipSnapshot) {
           if (membershipSnapshot.hasError) {
-            return Center(child: Text('Failed to load Mandalis.\n${membershipSnapshot.error}'));
+            return Center(
+              child: Text(
+                'Failed to load Mandalis.\n${membershipSnapshot.error}',
+              ),
+            );
           }
-          if (membershipSnapshot.connectionState == ConnectionState.waiting) {
+
+          if (membershipSnapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final memberships = membershipSnapshot.data ?? const <UserMandaliMembership>[];
+          final memberships =
+              membershipSnapshot.data ?? const <UserMandaliMembership>[];
+
           if (memberships.isEmpty) {
             return const Center(
               child: Padding(
@@ -69,17 +80,20 @@ class SupportMandaliScreen extends StatelessWidget {
           return FutureBuilder<List<BhaktaMandali>>(
             future: _loadMandalis(memberships),
             builder: (context, mandalisSnapshot) {
-              if (mandalisSnapshot.connectionState == ConnectionState.waiting) {
+              if (mandalisSnapshot.connectionState ==
+                  ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final mandalis = mandalisSnapshot.data ?? const <BhaktaMandali>[];
+              final mandalis =
+                  mandalisSnapshot.data ?? const <BhaktaMandali>[];
 
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 itemCount: mandalis.length,
                 itemBuilder: (context, index) {
                   final mandali = mandalis[index];
+
                   final isCompleted = _isCompleted(mandali);
                   final isActive = _isActive(mandali);
 
@@ -121,9 +135,17 @@ class SupportMandaliScreen extends StatelessWidget {
                               ),
                             ),
                             if (isCompleted)
-                              const _Badge(label: 'Completed', bg: _completedBg, fg: _completedText)
+                              const _Badge(
+                                label: 'Completed',
+                                bg: _completedBg,
+                                fg: _completedText,
+                              )
                             else if (isActive)
-                              const _Badge(label: 'Active Challenge', bg: _activeBg, fg: _activeText),
+                              const _Badge(
+                                label: 'Active Challenge',
+                                bg: _activeBg,
+                                fg: _activeText,
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -137,7 +159,9 @@ class SupportMandaliScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        if ((mandali.activeChallenge?.title ?? '').trim().isNotEmpty)
+                        if ((mandali.activeChallenge?.title ?? '')
+                            .trim()
+                            .isNotEmpty)
                           Text(
                             'Challenge: ${mandali.activeChallenge!.title}',
                             style: const TextStyle(
@@ -149,20 +173,12 @@ class SupportMandaliScreen extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => SupportRamakotiScreen(
-                                    source: 'support_mandali_screen',
-                                    sourceMandaliId: mandali.mandaliId,
-                                    sourceMandaliName: mandali.displayName,
-                                    sourceChallengeId: mandali.activeChallengeId,
-                                  ),
-                                ),
-                              );
-                            },
                             icon: const Icon(Icons.favorite_outline_rounded),
-                            label: Text(isCompleted ? 'Support Completed Mandali' : 'Offer Support'),
+                            label: Text(
+                              isCompleted
+                                  ? 'Support Completed Mandali'
+                                  : 'Offer Support',
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _accent,
                               foregroundColor: Colors.white,
@@ -171,6 +187,19 @@ class SupportMandaliScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                             ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => SupportRamakotiScreen(
+                                    source: 'support_mandali_screen',
+                                    sourceMandaliId: mandali.mandaliId,
+                                    sourceMandaliName: mandali.displayName,
+                                    sourceChallengeId:
+                                    mandali.activeChallengeId,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -185,18 +214,29 @@ class SupportMandaliScreen extends StatelessWidget {
     );
   }
 
-  Future<List<BhaktaMandali>> _loadMandalis(List<UserMandaliMembership> memberships) async {
+  Future<List<BhaktaMandali>> _loadMandalis(
+      List<UserMandaliMembership> memberships) async {
     final out = <BhaktaMandali>[];
+
     for (final membership in memberships) {
-      final mandali = await BhaktaMandaliService.instance.watchMandali(membership.mandaliId).first;
+      final mandali = await BhaktaMandaliService.instance
+          .watchMandali(membership.mandaliId)
+          .first;
+
       if (mandali != null) out.add(mandali);
     }
+
     out.sort((a, b) {
       final aCompleted = _isCompleted(a);
       final bCompleted = _isCompleted(b);
+
       if (aCompleted != bCompleted) return aCompleted ? 1 : -1;
-      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+
+      return a.displayName
+          .toLowerCase()
+          .compareTo(b.displayName.toLowerCase());
     });
+
     return out;
   }
 }

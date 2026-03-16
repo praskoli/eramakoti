@@ -1,14 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../../core/build/app_footer_helper.dart';
 import '../../models/user_profile.dart';
+import '../../screens/support/support_ramakoti_screen.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/profile_service.dart';
-import 'edit_profile_screen.dart';
+import '../../services/payments/upi_payment_service.dart';
+import '../../services/temples/support_target_resolver.dart';
+import '../../services/temples/temple_context_service.dart';
 import '../auth/login_screen.dart';
-import '../../screens/support/support_ramakoti_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -27,10 +32,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _outline = Color(0xFF9B8F86);
-  bool _showSupportCard = true;
-  static const String _upiId = '9121011887@pthdfc';
-  static const String _payeeName = 'Koli Prasanth';
-  static const String _upiNote = 'Support eRamakoti';
+  static const Color _softBlue = Color(0xFFEAF2FF);
+  static const Color _blueText = Color(0xFF2563EB);
+
+  bool _showSupportCards = true;
 
   late Future<UserProfile> _profileFuture;
 
@@ -42,6 +47,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final templeContext = context.watch<TempleContextService>();
+
+    final templeSupportTarget = SupportTargetResolver.resolve(
+      temple: templeContext.currentTemple,
+      defaultUpiId: UpiPaymentService.defaultUpiId,
+      defaultPayeeName: UpiPaymentService.defaultPayeeName,
+      defaultLabel: 'eRamakoti Support',
+    );
+
+    const platformSupportTarget = SupportTarget(
+      upiId: UpiPaymentService.defaultUpiId,
+      payeeName: UpiPaymentService.defaultPayeeName,
+      label: 'eRamakoti Platform',
+    );
+
     return Scaffold(
       backgroundColor: _bgColor,
       body: SafeArea(
@@ -63,19 +83,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                if (_showSupportCard)
-                  _SupportCard(
-                    onDonate: () => _showDonationSheet(context),
-                    onDetails: () => _showSupportDetails(context),
+                if (_showSupportCards)
+                  _DualSupportCards(
+                    showTempleCard: templeContext.isTempleMode,
+                    templeLabel: templeSupportTarget.label,
+                    onTempleSupport: () => _openTempleSupport(context),
+                    onTempleDetails: () => _showSupportDetails(
+                      context: context,
+                      title: 'Support ${templeSupportTarget.label}',
+                      message:
+                      'Your support helps continue the devotional effort for ${templeSupportTarget.label} through the active temple context.',
+                      actionLabel: 'Support Temple',
+                      onAction: () => _openTempleSupport(context),
+                    ),
+                    onPlatformSupport: () => _openPlatformSupport(context),
+                    onPlatformDetails: () => _showSupportDetails(
+                      context: context,
+                      title: 'Support eRamakoti Platform',
+                      message:
+                      'Your support helps us maintain and improve the eRamakoti platform for all devotees.',
+                      actionLabel: 'Support Platform',
+                      onAction: () => _openPlatformSupport(context),
+                    ),
                     onDismiss: () {
                       setState(() {
-                        _showSupportCard = false;
+                        _showSupportCards = false;
                       });
-                      _showSnackBar('Support card dismissed.');
+                      _showSnackBar('Support cards dismissed.');
                     },
                   ),
                 const SizedBox(height: 22),
-                if (snapshot.connectionState == ConnectionState.waiting && profile == null)
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    profile == null)
                   const _ProfileLoadingCard()
                 else if (snapshot.hasError)
                   _ErrorCard(
@@ -106,12 +145,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
+                    if (templeContext.isTempleMode) ...[
+                      _ContributionCard(
+                        title: 'Support ${templeSupportTarget.label}',
+                        subtitle: 'Temple support using the active temple context',
+                        upiId: templeSupportTarget.upiId,
+                        payeeName: templeSupportTarget.payeeName,
+                        supportLabel: templeSupportTarget.label,
+                        accentColor: _blueText,
+                        badgeText: 'Temple Support',
+                        badgeBg: _softBlue,
+                        badgeTextColor: _blueText,
+                        onCopyUpi: () => _copyUpiId(templeSupportTarget.upiId),
+                        onShareUpi: () => _shareUpi(
+                          templeSupportTarget.upiId,
+                          templeSupportTarget.payeeName,
+                          templeSupportTarget.label,
+                        ),
+                        onDonateAmount: (_) => _openTempleSupport(context),
+                        onOpenSheet: () => _openTempleSupport(context),
+                        onTapQr: () => _openTempleSupport(context),
+                      ),
+                      const SizedBox(height: 18),
+                    ],
                     _ContributionCard(
-                      onCopyUpi: _copyUpiId,
-                      onShareUpi: _shareUpi,
-                      onDonateAmount: _launchUpiWithAmount,
-                      onOpenSheet: () => _showDonationSheet(context),
-                      onTapQr: () => _showQrPreview(context),
+                      title: 'Support eRamakoti Platform',
+                      subtitle: 'Help maintain and improve the app for all devotees',
+                      upiId: platformSupportTarget.upiId,
+                      payeeName: platformSupportTarget.payeeName,
+                      supportLabel: platformSupportTarget.label,
+                      accentColor: _accentDeep,
+                      badgeText: 'Platform Support',
+                      badgeBg: _softAccent,
+                      badgeTextColor: _accentDeep,
+                      onCopyUpi: () => _copyUpiId(platformSupportTarget.upiId),
+                      onShareUpi: () => _shareUpi(
+                        platformSupportTarget.upiId,
+                        platformSupportTarget.payeeName,
+                        platformSupportTarget.label,
+                      ),
+                      onDonateAmount: (_) => _openPlatformSupport(context),
+                      onOpenSheet: () => _openPlatformSupport(context),
+                      onTapQr: () => _openPlatformSupport(context),
                     ),
                   ],
                 const SizedBox(height: 26),
@@ -121,7 +196,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final footerText = snapshot.data ?? 'Loading version...';
 
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: _cardColor,
                         borderRadius: BorderRadius.circular(18),
@@ -181,7 +259,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(22),
           ),
           title: const Text('Logout'),
-          content: const Text('Are you sure you want to logout from eRamakoti?'),
+          content: const Text(
+            'Are you sure you want to logout from eRamakoti?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -219,14 +299,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showSupportDetails(BuildContext context) {
+  Future<void> _openTempleSupport(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SupportRamakotiScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openPlatformSupport(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const SupportRamakotiScreen(
+          source: 'platform_support_profile',
+          forcePlatformSupport: true,
+        )
+      ),
+    );
+  }
+
+  void _showSupportDetails({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: _cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
@@ -242,19 +347,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Support eRamakoti',
-                  style: TextStyle(
+                Text(
+                  title,
+                  style: const TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
                     color: _textPrimary,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Your support helps us continue this devotional effort and build more spiritual features for devotees.',
+                Text(
+                  message,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14.5,
                     height: 1.5,
                     color: _textSecondary,
@@ -265,12 +371,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.of(this.context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SupportRamakotiScreen(),
-                        ),
-                      );
+                      Navigator.pop(sheetContext);
+                      onAction();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _accent,
@@ -279,9 +381,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    child: const Text(
-                      'Offer Support',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                    child: Text(
+                      actionLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
                 ),
@@ -293,105 +395,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _showDonationSheet(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
-      ),
-    );
-  }
-
-  Future<void> _showQrPreview(BuildContext context) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: _cardColor,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Scan to Donate',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: _textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  _upiId,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: _accentDeep,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/images/donate_upi_qr.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _copyUpiId,
-                      icon: const Icon(Icons.copy_rounded),
-                      label: const Text('Copy UPI'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _launchUpiWithoutAmount,
-                      icon: const Icon(Icons.open_in_new_rounded),
-                      label: const Text('Open UPI App'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accent,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _copyUpiId() async {
-    await Clipboard.setData(const ClipboardData(text: _upiId));
+  Future<void> _copyUpiId(String upiId) async {
+    await Clipboard.setData(ClipboardData(text: upiId));
     _showSnackBar('UPI ID copied.');
   }
 
-  Future<void> _shareUpi() async {
+  Future<void> _shareUpi(
+      String upiId,
+      String payeeName,
+      String supportLabel,
+      ) async {
     await Share.share(
-      'Support eRamakoti\nUPI ID: $_upiId\nPayee: $_payeeName',
-      subject: 'Support eRamakoti',
-    );
-  }
-
-  Future<void> _launchUpiWithoutAmount() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
-      ),
+      'Support $supportLabel\nUPI ID: $upiId\nPayee: $payeeName',
+      subject: 'Support $supportLabel',
     );
   }
 
   Future<void> _launchUpiWithAmount(int amount) async {
+    if (kDebugMode) {
+      debugPrint('Requested support amount: ₹$amount');
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const SupportRamakotiScreen(),
@@ -412,13 +435,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _DualSupportCards extends StatelessWidget {
+  const _DualSupportCards({
+    required this.showTempleCard,
+    required this.templeLabel,
+    required this.onTempleSupport,
+    required this.onTempleDetails,
+    required this.onPlatformSupport,
+    required this.onPlatformDetails,
+    required this.onDismiss,
+  });
+
+  final bool showTempleCard;
+  final String templeLabel;
+  final VoidCallback onTempleSupport;
+  final VoidCallback onTempleDetails;
+  final VoidCallback onPlatformSupport;
+  final VoidCallback onPlatformDetails;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        if (showTempleCard) ...[
+          _SupportCard(
+            title: '🙏 Support $templeLabel',
+            subtitle: 'Voluntary support for the active temple seva.',
+            accentBg: _ProfileScreenState._softBlue,
+            accentText: _ProfileScreenState._blueText,
+            primaryLabel: 'Support Temple',
+            secondaryLabel: 'Details',
+            onDonate: onTempleSupport,
+            onDetails: onTempleDetails,
+            onDismiss: onDismiss,
+          ),
+          const SizedBox(height: 14),
+        ],
+        _SupportCard(
+          title: '🙏 Support eRamakoti Platform',
+          subtitle: 'Voluntary support for app maintenance and improvements.',
+          accentBg: _ProfileScreenState._softAccent,
+          accentText: _ProfileScreenState._accentDeep,
+          primaryLabel: 'Support App',
+          secondaryLabel: 'Details',
+          onDonate: onPlatformSupport,
+          onDetails: onPlatformDetails,
+          onDismiss: onDismiss,
+        ),
+      ],
+    );
+  }
+}
+
 class _SupportCard extends StatelessWidget {
   const _SupportCard({
+    required this.title,
+    required this.subtitle,
+    required this.accentBg,
+    required this.accentText,
+    required this.primaryLabel,
+    required this.secondaryLabel,
     required this.onDonate,
     required this.onDetails,
     required this.onDismiss,
   });
 
+  final String title;
+  final String subtitle;
+  final Color accentBg;
+  final Color accentText;
+  final String primaryLabel;
+  final String secondaryLabel;
   final VoidCallback onDonate;
   final VoidCallback onDetails;
   final VoidCallback onDismiss;
@@ -427,7 +515,7 @@ class _SupportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: _ProfileScreenState._softAccent,
+        color: accentBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _ProfileScreenState._softBorder),
       ),
@@ -435,18 +523,18 @@ class _SupportCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '🙏 Support this project',
+          Text(
+            title,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: _ProfileScreenState._accentDeep,
+              color: accentText,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Voluntary donation. All features are free for everyone.',
-            style: TextStyle(
+          Text(
+            subtitle,
+            style: const TextStyle(
               fontSize: 14,
               height: 1.4,
               color: _ProfileScreenState._textPrimary,
@@ -485,9 +573,12 @@ class _SupportCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      child: const Text(
-                        'Offer Support',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                      child: Text(
+                        primaryLabel,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -500,15 +591,20 @@ class _SupportCard extends StatelessWidget {
                   child: OutlinedButton(
                     onPressed: onDetails,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _ProfileScreenState._accentDeep,
-                      side: const BorderSide(color: _ProfileScreenState._outline),
+                      foregroundColor: accentText,
+                      side: const BorderSide(
+                        color: _ProfileScreenState._outline,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
                       ),
                     ),
-                    child: const Text(
-                      'Details',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    child: Text(
+                      secondaryLabel,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -517,7 +613,7 @@ class _SupportCard extends StatelessWidget {
               TextButton(
                 onPressed: onDismiss,
                 style: TextButton.styleFrom(
-                  foregroundColor: _ProfileScreenState._accentDeep,
+                  foregroundColor: accentText,
                 ),
                 child: const Text(
                   'Dismiss',
@@ -664,7 +760,11 @@ class _ProfileHeaderCard extends StatelessWidget {
   }
 
   static String _buildInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
@@ -673,6 +773,15 @@ class _ProfileHeaderCard extends StatelessWidget {
 
 class _ContributionCard extends StatelessWidget {
   const _ContributionCard({
+    required this.title,
+    required this.subtitle,
+    required this.upiId,
+    required this.payeeName,
+    required this.supportLabel,
+    required this.accentColor,
+    required this.badgeText,
+    required this.badgeBg,
+    required this.badgeTextColor,
     required this.onCopyUpi,
     required this.onShareUpi,
     required this.onDonateAmount,
@@ -680,6 +789,15 @@ class _ContributionCard extends StatelessWidget {
     required this.onTapQr,
   });
 
+  final String title;
+  final String subtitle;
+  final String upiId;
+  final String payeeName;
+  final String supportLabel;
+  final Color accentColor;
+  final String badgeText;
+  final Color badgeBg;
+  final Color badgeTextColor;
   final VoidCallback onCopyUpi;
   final VoidCallback onShareUpi;
   final ValueChanged<int> onDonateAmount;
@@ -700,37 +818,99 @@ class _ContributionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(
-            child: Text(
-              'Offer Support',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._textPrimary,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: badgeTextColor,
+                  ),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: _ProfileScreenState._textPrimary,
             ),
           ),
-          const SizedBox(height: 10),
-          const Center(
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: _ProfileScreenState._textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Center(
             child: Text(
-              _ProfileScreenState._upiId,
+              upiId,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._accentDeep,
+                color: accentColor,
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           InkWell(
             borderRadius: BorderRadius.circular(20),
             onTap: onTapQr,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/images/donate_upi_qr.png',
-                fit: BoxFit.contain,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F5F0),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _ProfileScreenState._softBorder,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.qr_code_2_rounded,
+                    size: 56,
+                    color: accentColor,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Tap to open QR and support options',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _ProfileScreenState._textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Payee: $payeeName',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: _ProfileScreenState._textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -740,24 +920,24 @@ class _ContributionCard extends StatelessWidget {
             children: [
               TextButton(
                 onPressed: onCopyUpi,
-                child: const Text(
+                child: Text(
                   'Copy UPI ID',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: _ProfileScreenState._accentDeep,
+                    color: accentColor,
                   ),
                 ),
               ),
               const SizedBox(width: 18),
               TextButton(
                 onPressed: onShareUpi,
-                child: const Text(
+                child: Text(
                   'Share UPI ID',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: _ProfileScreenState._accentDeep,
+                    color: accentColor,
                   ),
                 ),
               ),
@@ -768,13 +948,13 @@ class _ContributionCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: onOpenSheet,
               icon: const Icon(Icons.open_in_new_rounded),
-              label: const Text('Open Support Options'),
+              label: Text('Open $supportLabel'),
             ),
           ),
           const SizedBox(height: 18),
           const Center(
             child: Text(
-              'Choose an offerning:',
+              'Choose an offering:',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
