@@ -171,7 +171,7 @@ class _RunHistoryCardState extends State<_RunHistoryCard> {
 
   String _targetLabel(int targetCount) {
     if (targetCount <= 0) return 'Not selected';
-    if (targetCount == 10) return '10';
+    if (targetCount == 10) return '11';
     if (targetCount == 108) return '108';
     if (targetCount == 1000) return '1,000';
     if (targetCount == 10000) return '10,000';

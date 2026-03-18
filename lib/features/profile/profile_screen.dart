@@ -1,15 +1,13 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
+
 import '../../core/build/app_footer_helper.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/profile_service.dart';
-import 'edit_profile_screen.dart';
 import '../auth/login_screen.dart';
-import '../../screens/support/support_ramakoti_screen.dart';
 import '../devotion/personal_summary_devotion_screen.dart';
+import '../navigation/main_bottom_nav_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,13 +23,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _textSecondary = Color(0xFF7C7167);
   static const Color _accent = Color(0xFFFF9E2C);
   static const Color _accentDeep = Color(0xFFE8881A);
-  static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _outline = Color(0xFF9B8F86);
-  bool _showSupportCard = true;
-  static const String _upiId = '9121011887@pthdfc';
-  static const String _payeeName = 'Koli Prasanth';
-  static const String _upiNote = 'Support eRamakoti';
 
   late Future<UserProfile> _profileFuture;
 
@@ -63,20 +56,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 18),
-                if (_showSupportCard)
-                  _SupportCard(
-                    onDonate: () => _showDonationSheet(context),
-                    onDetails: () => _showSupportDetails(context),
-                    onDismiss: () {
-                      setState(() {
-                        _showSupportCard = false;
-                      });
-                      _showSnackBar('Support card dismissed.');
-                    },
-                  ),
                 const SizedBox(height: 22),
-                if (snapshot.connectionState == ConnectionState.waiting && profile == null)
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    profile == null)
                   const _ProfileLoadingCard()
                 else if (snapshot.hasError)
                   _ErrorCard(
@@ -107,7 +89,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-
                     _DevotionEntryCard(
                       onTap: () {
                         Navigator.of(context).push(
@@ -118,12 +99,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 18),
-                    _ContributionCard(
-                      onCopyUpi: _copyUpiId,
-                      onShareUpi: _shareUpi,
-                      onDonateAmount: _launchUpiWithAmount,
-                      onOpenSheet: () => _showDonationSheet(context),
-                      onTapQr: () => _showQrPreview(context),
+                    _SupportShortcutCard(
+                      onTap: _openSupportTab,
                     ),
                   ],
                 const SizedBox(height: 26),
@@ -133,7 +110,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final footerText = snapshot.data ?? 'Loading version...';
 
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: _cardColor,
                         borderRadius: BorderRadius.circular(18),
@@ -193,7 +173,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(22),
           ),
           title: const Text('Logout'),
-          content: const Text('Are you sure you want to logout from eRamakoti?'),
+          content: const Text(
+            'Are you sure you want to logout from eRamakoti?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -231,183 +213,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showSupportDetails(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4C7BA),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Support eRamakoti',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    color: _textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Your support helps us continue this devotional effort and build more spiritual features for devotees.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: _textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.of(this.context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SupportRamakotiScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _accent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                    child: const Text(
-                      'Offer Support',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showDonationSheet(BuildContext context) async {
-    await Navigator.of(context).push(
+  void _openSupportTab() {
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
+        builder: (_) => const MainBottomNavScreen(initialIndex: 3),
       ),
-    );
-  }
-
-  Future<void> _showQrPreview(BuildContext context) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: _cardColor,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Scan to Donate',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: _textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  _upiId,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: _accentDeep,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/images/donate_upi_qr.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _copyUpiId,
-                      icon: const Icon(Icons.copy_rounded),
-                      label: const Text('Copy UPI'),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _launchUpiWithoutAmount,
-                      icon: const Icon(Icons.open_in_new_rounded),
-                      label: const Text('Open UPI App'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accent,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _copyUpiId() async {
-    await Clipboard.setData(const ClipboardData(text: _upiId));
-    _showSnackBar('UPI ID copied.');
-  }
-
-  Future<void> _shareUpi() async {
-    await Share.share(
-      'Support eRamakoti\nUPI ID: $_upiId\nPayee: $_payeeName',
-      subject: 'Support eRamakoti',
-    );
-  }
-
-  Future<void> _launchUpiWithoutAmount() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
-      ),
-    );
-  }
-
-  Future<void> _launchUpiWithAmount(int amount) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SupportRamakotiScreen(),
-      ),
+          (route) => false,
     );
   }
 
@@ -421,126 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-  }
-}
-
-class _SupportCard extends StatelessWidget {
-  const _SupportCard({
-    required this.onDonate,
-    required this.onDetails,
-    required this.onDismiss,
-  });
-
-  final VoidCallback onDonate;
-  final VoidCallback onDetails;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _ProfileScreenState._softAccent,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _ProfileScreenState._softBorder),
-      ),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '🙏 Support this project',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: _ProfileScreenState._accentDeep,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Voluntary donation. All features are free for everyone.',
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.4,
-              color: _ProfileScreenState._textPrimary,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x66FF9E2C),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                        ),
-                        BoxShadow(
-                          color: Color(0x33FFB347),
-                          blurRadius: 28,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton(
-                      onPressed: onDonate,
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: _ProfileScreenState._accent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                      ),
-                      child: const Text(
-                        'Offer Support',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: onDetails,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _ProfileScreenState._accentDeep,
-                      side: const BorderSide(color: _ProfileScreenState._outline),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                    child: const Text(
-                      'Details',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: onDismiss,
-                style: TextButton.styleFrom(
-                  foregroundColor: _ProfileScreenState._accentDeep,
-                ),
-                child: const Text(
-                  'Dismiss',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -676,137 +367,83 @@ class _ProfileHeaderCard extends StatelessWidget {
   }
 
   static String _buildInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 }
 
-class _ContributionCard extends StatelessWidget {
-  const _ContributionCard({
-    required this.onCopyUpi,
-    required this.onShareUpi,
-    required this.onDonateAmount,
-    required this.onOpenSheet,
-    required this.onTapQr,
+class _SupportShortcutCard extends StatelessWidget {
+  const _SupportShortcutCard({
+    required this.onTap,
   });
 
-  final VoidCallback onCopyUpi;
-  final VoidCallback onShareUpi;
-  final ValueChanged<int> onDonateAmount;
-  final VoidCallback onOpenSheet;
-  final VoidCallback onTapQr;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    const amounts = [51, 101, 501, 1001, 2001, 5001];
-
     return Container(
       decoration: BoxDecoration(
-        color: _ProfileScreenState._cardColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _ProfileScreenState._softBorder),
+        color: const Color(0xFFFFF1DE),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFEADFD2)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(
-            child: Text(
-              'Offer Support',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._textPrimary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Center(
-            child: Text(
-              _ProfileScreenState._upiId,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._accentDeep,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: onTapQr,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/images/donate_upi_qr.png',
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          const Row(
             children: [
-              TextButton(
-                onPressed: onCopyUpi,
-                child: const Text(
-                  'Copy UPI ID',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _ProfileScreenState._accentDeep,
-                  ),
-                ),
+              Icon(
+                Icons.volunteer_activism_rounded,
+                color: Color(0xFFE8881A),
               ),
-              const SizedBox(width: 18),
-              TextButton(
-                onPressed: onShareUpi,
-                child: const Text(
-                  'Share UPI ID',
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Support eRamakoti',
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _ProfileScreenState._accentDeep,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2F2A25),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: onOpenSheet,
-              icon: const Icon(Icons.open_in_new_rounded),
-              label: const Text('Open Support Options'),
+          const Text(
+            'Offer Support and support-related details are available in the Support tab.',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: Color(0xFF2F2A25),
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 18),
-          const Center(
-            child: Text(
-              'Choose an offerning:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._textPrimary,
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _ProfileScreenState._accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: const Text(
+                'Offer Support',
+                style: TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            alignment: WrapAlignment.center,
-            children: amounts
-                .map(
-                  (amount) => _AmountChip(
-                amount: amount,
-                onTap: () => onDonateAmount(amount),
-              ),
-            )
-                .toList(),
           ),
         ],
       ),
@@ -883,49 +520,6 @@ class _OutlineActionButton extends StatelessWidget {
   }
 }
 
-class _AmountChip extends StatelessWidget {
-  const _AmountChip({
-    required this.amount,
-    required this.onTap,
-  });
-
-  final int amount;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          width: 92,
-          height: 54,
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _ProfileScreenState._outline,
-              width: 1.5,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              '₹$amount',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: _ProfileScreenState._textPrimary,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ProfileLoadingCard extends StatelessWidget {
   const _ProfileLoadingCard();
 
@@ -987,7 +581,8 @@ class _ErrorCard extends StatelessWidget {
       ),
     );
   }
-  }
+}
+
 class _DevotionEntryCard extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -1042,7 +637,7 @@ class _DevotionEntryCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
               size: 16,
               color: Color(0xFF6A5546),

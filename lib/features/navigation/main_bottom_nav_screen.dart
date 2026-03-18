@@ -4,11 +4,17 @@ import '../bhakta_mandali/screens/bhakta_mandali_home_screen.dart';
 import '../history/history_screen.dart';
 import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../screens/support/support_ramakoti_screen.dart';
 
 class MainBottomNavScreen extends StatefulWidget {
   const MainBottomNavScreen({super.key, this.initialIndex = 0});
 
   final int initialIndex;
+
+  static void switchTab(BuildContext context, int index) {
+    final state = context.findAncestorStateOfType<_MainBottomNavScreenState>();
+    state?._onNavTap(index);
+  }
 
   @override
   State<MainBottomNavScreen> createState() => _MainBottomNavScreenState();
@@ -29,13 +35,14 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
     HomeScreen(),
     RamakotiHistoryScreen(),
     BhaktaMandaliHomeScreen(),
+    SupportRamakotiScreen(),
     ProfileScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 3);
+    _currentIndex = widget.initialIndex.clamp(0, 4);
     _pageController = PageController(initialPage: _currentIndex);
   }
 
@@ -46,6 +53,8 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
   }
 
   void _onNavTap(int index) {
+    if (!mounted) return;
+    if (index < 0 || index >= _screens.length) return;
     if (_currentIndex == index) return;
 
     setState(() => _currentIndex = index);
@@ -57,66 +66,91 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
   }
 
   void _onPageChanged(int index) {
+    if (!mounted) return;
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
   }
 
+  Future<bool> _handleWillPop() async {
+    if (_currentIndex != 0) {
+      _onNavTap(0);
+      return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
-        children: _screens,
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          decoration: const BoxDecoration(
-            color: _navBg,
-            border: Border(
-              top: BorderSide(color: _softBorder),
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          _onNavTap(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _bgColor,
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: _screens,
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: _navBg,
+              border: Border(
+                top: BorderSide(color: _softBorder),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 16,
+                  offset: Offset(0, -4),
+                ),
+              ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 16,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          child: Row(
-            children: [
-              _NavItem(
-                label: 'Home',
-                icon: Icons.home_rounded,
-                selected: _currentIndex == 0,
-                onTap: () => _onNavTap(0),
-              ),
-              const SizedBox(width: 8),
-              _NavItem(
-                label: 'History',
-                icon: Icons.auto_stories_rounded,
-                selected: _currentIndex == 1,
-                onTap: () => _onNavTap(1),
-              ),
-              const SizedBox(width: 8),
-              _NavItem(
-                label: 'Mandali',
-                icon: Icons.groups_rounded,
-                selected: _currentIndex == 2,
-                onTap: () => _onNavTap(2),
-              ),
-              const SizedBox(width: 8),
-              _NavItem(
-                label: 'Profile',
-                icon: Icons.account_circle_rounded,
-                selected: _currentIndex == 3,
-                onTap: () => _onNavTap(3),
-              ),
-            ],
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+            child: Row(
+              children: [
+                _NavItem(
+                  label: 'Home',
+                  icon: Icons.home_rounded,
+                  selected: _currentIndex == 0,
+                  onTap: () => _onNavTap(0),
+                ),
+                const SizedBox(width: 6),
+                _NavItem(
+                  label: 'History',
+                  icon: Icons.auto_stories_rounded,
+                  selected: _currentIndex == 1,
+                  onTap: () => _onNavTap(1),
+                ),
+                const SizedBox(width: 6),
+                _NavItem(
+                  label: 'Mandali',
+                  icon: Icons.groups_rounded,
+                  selected: _currentIndex == 2,
+                  onTap: () => _onNavTap(2),
+                ),
+                const SizedBox(width: 6),
+                _NavItem(
+                  label: 'Support',
+                  icon: Icons.volunteer_activism_rounded,
+                  selected: _currentIndex == 3,
+                  onTap: () => _onNavTap(3),
+                ),
+                const SizedBox(width: 6),
+                _NavItem(
+                  label: 'Profile',
+                  icon: Icons.account_circle_rounded,
+                  selected: _currentIndex == 4,
+                  onTap: () => _onNavTap(4),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -152,7 +186,7 @@ class _NavItem extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
             decoration: BoxDecoration(
               color: selected ? _softAccent : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
@@ -162,14 +196,14 @@ class _NavItem extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  size: 26,
+                  size: 24,
                   color: selected ? _accent : _inactive,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 11.5,
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     color: selected ? _accent : _inactive,
                   ),

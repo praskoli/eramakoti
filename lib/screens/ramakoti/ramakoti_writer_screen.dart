@@ -626,7 +626,7 @@ class _RamakotiWriterScreenState extends State<RamakotiWriterScreen> {
         storedCompletedBatchCount: result.currentRunCount ~/ 108,
       );
 
-      if (result.batchCompleted && !updatedMeta.isTargetCompleted) {
+      if (result.batchCompleted) {
         await _showJapaMalaCompletedDialog(context, updatedMeta);
       }
 
@@ -1469,7 +1469,12 @@ class _RamakotiGridState extends State<_RamakotiGrid> {
         itemBuilder: (context, index) {
           return _PaperStyledCell(
             paperStyle: widget.paperStyle,
-            isFilled: false,
+            isFilled: true,
+            child: _GridCellText(
+              text: widget.gridLabel,
+              inkColor: widget.inkColor,
+              handwritingMode: widget.handwritingMode,
+            ),
           );
         },
       );

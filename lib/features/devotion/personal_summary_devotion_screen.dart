@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import '../../services/firebase/ramakoti_service.dart';
+import '../navigation/main_bottom_nav_screen.dart';
 
 class PersonalSummaryScreen extends StatefulWidget {
   const PersonalSummaryScreen({super.key});
@@ -18,9 +20,25 @@ class _PersonalSummaryScreenState extends State<PersonalSummaryScreen> {
   static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
 
-  static const List<int> _manualWritingOptions = [11, 27, 54, 108, 216, 504, 1008];
+  static const List<int> _manualWritingOptions = [
+    11,
+    27,
+    54,
+    108,
+    216,
+    504,
+    1008,
+  ];
   static const List<int> _japaOptions = [108, 216, 324, 504, 1008];
-  static const List<int> _additionalOptions = [11, 27, 54, 108, 216, 504, 1008];
+  static const List<int> _additionalOptions = [
+    11,
+    27,
+    54,
+    108,
+    216,
+    504,
+    1008,
+  ];
 
   int _selectedManualWriting = 0;
   int _selectedJapa = 0;
@@ -77,6 +95,15 @@ class _PersonalSummaryScreenState extends State<PersonalSummaryScreen> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  void _openSupportTab() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const MainBottomNavScreen(initialIndex: 3),
+      ),
+          (route) => false,
+    );
   }
 
   void _showSnackBar(String message) {
@@ -307,38 +334,67 @@ class _PersonalSummaryScreenState extends State<PersonalSummaryScreen> {
                 ),
               ),
               const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: _accent.withOpacity(0.55),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: OutlinedButton(
+                        onPressed: _openSupportTab,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _accent,
+                          side: const BorderSide(color: _accent),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        child: const Text(
+                          'Offer Support',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  child: _isSaving
-                      ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      valueColor:
-                      AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                      : const Text(
-                    'Save Devotion',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _accent,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: _accent.withOpacity(0.55),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                            : const Text(
+                          'Save Devotion',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
