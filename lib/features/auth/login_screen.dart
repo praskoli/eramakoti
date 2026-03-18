@@ -1,13 +1,14 @@
-import 'package:eramakoti/screens/donation_transparency_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:eramakoti/services/auth/google_sign_in_service.dart';
-import 'package:eramakoti/services/auth/auth_service.dart';
-import 'package:eramakoti/services/firebase/firestore_service.dart';
+
 import 'package:eramakoti/features/navigation/main_bottom_nav_screen.dart';
+import 'package:eramakoti/screens/donation_transparency_screen.dart';
+import 'package:eramakoti/services/auth/auth_service.dart';
+import 'package:eramakoti/services/auth/google_sign_in_service.dart';
+import 'package:eramakoti/services/firebase/firestore_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,13 +29,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isFacebookLoading = false;
   bool _hasAcceptedPolicies = false;
   bool _showConsentHelper = false;
-  void _openDonationTransparency() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const DonationTransparencyScreen(),
-      ),
-    );
-  }
+  bool _isConsentStateLoading = true;
+
   static const bool _showFacebookLogin = true;
 
   static const String _privacyAndTermsUrl =
@@ -43,6 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
       'https://hindupoojaapp.firebaseapp.com/delete-account';
   static const String _qtiLabsUrl = 'https://www.qtilabs.com/';
   static const String _termsPopupSeenKey = 'eramakoti_terms_popup_seen';
+  static const String _termsAcceptedVersionKey =
+      'eramakoti_terms_accepted_version';
   static const String _termsVersion = 'v1';
 
   bool get _isAnyLoading => _isGoogleLoading || _isFacebookLoading;
@@ -50,10 +48,37 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _showTermsPopupIfNeeded();
+    _initializeConsentState();
+  }
+
+  Future<void> _initializeConsentState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final acceptedVersion = prefs.getString(_termsAcceptedVersionKey);
+    final alreadySeenPopup = prefs.getBool(_termsPopupSeenKey) ?? false;
+
+    if (!mounted) return;
+
+    setState(() {
+      _hasAcceptedPolicies = acceptedVersion == _termsVersion;
+      _isConsentStateLoading = false;
+    });
+
+    if (!_hasAcceptedPolicies && !alreadySeenPopup) {
+      _showTermsPopupIfNeeded();
+    }
+  }
+
+  void _openDonationTransparency() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const DonationTransparencyScreen(),
+      ),
+    );
   }
 
   Future<void> _showTermsPopupIfNeeded() async {
+    if (!mounted) return;
+
     final prefs = await SharedPreferences.getInstance();
     final alreadySeen = prefs.getBool(_termsPopupSeenKey) ?? false;
 
@@ -138,8 +163,33 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _persistConsentLocally(bool accepted) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (accepted) {
+      await prefs.setString(_termsAcceptedVersionKey, _termsVersion);
+      await prefs.setBool(_termsPopupSeenKey, true);
+    } else {
+      await prefs.remove(_termsAcceptedVersionKey);
+    }
+  }
+
   Future<bool> _ensureConsentAccepted() async {
     if (_hasAcceptedPolicies) return true;
+
+    final prefs = await SharedPreferences.getInstance();
+    final acceptedVersion = prefs.getString(_termsAcceptedVersionKey);
+
+    if (acceptedVersion == _termsVersion) {
+      if (!mounted) return true;
+
+      setState(() {
+        _hasAcceptedPolicies = true;
+        _showConsentHelper = false;
+      });
+
+      return true;
+    }
 
     if (mounted) {
       setState(() => _showConsentHelper = true);
@@ -162,10 +212,12 @@ class _LoginScreenState extends State<LoginScreen> {
       'termsAcceptedAt': FieldValue.serverTimestamp(),
       'termsVersion': _termsVersion,
     }, SetOptions(merge: true));
+
+    await _persistConsentLocally(true);
   }
 
   Future<void> _handleGoogleSignIn() async {
-    if (_isAnyLoading) return;
+    if (_isAnyLoading || _isConsentStateLoading) return;
     if (!await _ensureConsentAccepted()) return;
 
     setState(() => _isGoogleLoading = true);
@@ -215,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleFacebookSignIn() async {
-    if (_isAnyLoading) return;
+    if (_isAnyLoading || _isConsentStateLoading) return;
     if (!await _ensureConsentAccepted()) return;
 
     setState(() => _isFacebookLoading = true);
@@ -306,6 +358,19 @@ class _LoginScreenState extends State<LoginScreen> {
     await _openUrl(_deleteAccountUrl);
   }
 
+  Future<void> _onConsentChanged(bool value) async {
+    if (_isAnyLoading || _isConsentStateLoading) return;
+
+    setState(() {
+      _hasAcceptedPolicies = value;
+      if (value) {
+        _showConsentHelper = false;
+      }
+    });
+
+    await _persistConsentLocally(value);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -389,7 +454,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: Column(
                                   children: [
                                     _GoogleLoginButton(
-                                      onPressed: _isAnyLoading
+                                      onPressed: _isAnyLoading || _isConsentStateLoading
                                           ? null
                                           : _handleGoogleSignIn,
                                       isLoading: _isGoogleLoading,
@@ -397,7 +462,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     if (_showFacebookLogin) ...[
                                       SizedBox(height: betweenGap),
                                       _FacebookLoginButton(
-                                        onPressed: _isAnyLoading
+                                        onPressed:
+                                        _isAnyLoading || _isConsentStateLoading
                                             ? null
                                             : _handleFacebookSignIn,
                                         isLoading: _isFacebookLoading,
@@ -410,16 +476,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                       children: [
                                         Checkbox(
                                           value: _hasAcceptedPolicies,
-                                          onChanged: _isAnyLoading
+                                          onChanged: _isAnyLoading ||
+                                              _isConsentStateLoading
                                               ? null
-                                              : (value) {
-                                            setState(() {
-                                              _hasAcceptedPolicies =
-                                                  value ?? false;
-                                              if (_hasAcceptedPolicies) {
-                                                _showConsentHelper = false;
-                                              }
-                                            });
+                                              : (value) async {
+                                            await _onConsentChanged(
+                                              value ?? false,
+                                            );
                                           },
                                           activeColor:
                                           LoginScreen.facebookBlue,
@@ -524,7 +587,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-
                               GestureDetector(
                                 onTap: _openDonationTransparency,
                                 child: const Text(
@@ -581,7 +643,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
             ),
-            if (_isAnyLoading)
+            if (_isAnyLoading || _isConsentStateLoading)
               AbsorbPointer(
                 absorbing: true,
                 child: Container(

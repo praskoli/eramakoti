@@ -15,6 +15,7 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool _checkingForceUpdate = false;
+  bool _navigatedToForceUpdate = false;
 
   @override
   void initState() {
@@ -37,7 +38,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   }
 
   Future<void> _checkForceUpdate() async {
-    if (_checkingForceUpdate) return;
+    if (_checkingForceUpdate || _navigatedToForceUpdate) return;
 
     _checkingForceUpdate = true;
 
@@ -47,6 +48,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (!mounted) return;
 
       if (result.force && result.url != null && result.url!.isNotEmpty) {
+        _navigatedToForceUpdate = true;
+
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => ForceUpdateScreen(playUrl: result.url!),
@@ -66,6 +69,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     return StreamBuilder<User?>(
       stream: AuthService.instance.authStateChanges(),
       builder: (context, snapshot) {
+        if (_navigatedToForceUpdate) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:eramakoti/app/router/route_names.dart';
+import 'package:eramakoti/features/auth/auth_gate.dart';
 import 'package:eramakoti/services/app_update_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -18,10 +19,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _runStartupChecks() async {
-    print('SPLASH_CHECK started');
+    debugPrint('SPLASH_CHECK started');
+
     try {
       final result = await AppUpdateService.check();
-      print(
+
+      debugPrint(
         'SPLASH_CHECK result force=${result.force} optional=${result.optional} url=${result.url}',
       );
 
@@ -29,18 +32,28 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (result.force && result.url != null && result.url!.isNotEmpty) {
         final encodedUrl = Uri.encodeComponent(result.url!);
-        print('SPLASH_CHECK going to force update');
+        debugPrint('SPLASH_CHECK going to force update');
         context.go('${RouteNames.forceUpdate}?url=$encodedUrl');
         return;
       }
 
-      print('SPLASH_CHECK going to login');
-      context.go(RouteNames.login);
+      debugPrint('SPLASH_CHECK going to auth gate');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const AuthGate(),
+        ),
+      );
     } catch (e, st) {
-      print('SPLASH_CHECK exception=$e');
-      print('SPLASH_CHECK stack=$st');
+      debugPrint('SPLASH_CHECK exception=$e');
+      debugPrint('SPLASH_CHECK stack=$st');
+
       if (!mounted) return;
-      context.go(RouteNames.login);
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const AuthGate(),
+        ),
+      );
     }
   }
 

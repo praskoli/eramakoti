@@ -27,11 +27,7 @@ class AuthService {
     try {
       debugPrint('FB SIGN-IN: start');
 
-      try {
-        await FacebookAuth.instance.logOut();
-      } catch (_) {}
-
-      final LoginResult result = await FacebookAuth.instance.login(
+       final LoginResult result = await FacebookAuth.instance.login(
         permissions: const ['email', 'public_profile'],
         loginBehavior: LoginBehavior.nativeWithFallback,
       );
