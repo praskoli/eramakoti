@@ -48,11 +48,10 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
-    - assets/audio/jaisriramtone.mp3
-    - assets/audio/temple_bell.mp3
+    - assets/audio/
     - assets/content/ma_asayam/
     - assets/data/certificate_texts.json
-
+    
 flutter_launcher_icons:
   android: true
   ios: false

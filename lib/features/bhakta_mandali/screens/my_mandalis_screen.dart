@@ -66,7 +66,8 @@ class MyMandalisScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final memberships = membershipsSnapshot.data ?? const <UserMandaliMembership>[];
+          final memberships =
+              membershipsSnapshot.data ?? const <UserMandaliMembership>[];
 
           if (memberships.isEmpty) {
             return const Center(
@@ -84,7 +85,8 @@ class MyMandalisScreen extends StatelessWidget {
             stream: RamakotiService.instance.watchSummary(user.uid),
             initialData: RamakotiMeta.empty(user.uid),
             builder: (context, summarySnapshot) {
-              final summary = summarySnapshot.data ?? RamakotiMeta.empty(user.uid);
+              final summary =
+                  summarySnapshot.data ?? RamakotiMeta.empty(user.uid);
 
               return FutureBuilder<List<_MandaliCardData>>(
                 future: _loadMandaliCards(
@@ -101,11 +103,13 @@ class MyMandalisScreen extends StatelessWidget {
                     );
                   }
 
-                  if (cardsSnapshot.connectionState == ConnectionState.waiting) {
+                  if (cardsSnapshot.connectionState ==
+                      ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final cards = cardsSnapshot.data ?? const <_MandaliCardData>[];
+                  final cards =
+                      cardsSnapshot.data ?? const <_MandaliCardData>[];
 
                   if (cards.isEmpty) {
                     return const Center(
@@ -171,7 +175,8 @@ class MyMandalisScreen extends StatelessWidget {
                         },
                         onSetActive: item.canSelect
                             ? () async {
-                          await BhaktaMandaliService.instance.setActiveMandali(
+                          await BhaktaMandaliService.instance
+                              .setActiveMandali(
                             uid: user.uid,
                             mandaliId: item.mandaliId,
                             mandaliName: item.displayName,
@@ -181,7 +186,8 @@ class MyMandalisScreen extends StatelessWidget {
                             : null,
                         onClearActive: item.isSelected
                             ? () async {
-                          await BhaktaMandaliService.instance.clearActiveMandali(
+                          await BhaktaMandaliService.instance
+                              .clearActiveMandali(
                             uid: user.uid,
                           );
                         }
@@ -205,10 +211,11 @@ class MyMandalisScreen extends StatelessWidget {
     final firestore = FirebaseFirestore.instance;
 
     final futures = memberships.map((membership) async {
-      final doc = await firestore
-          .collection('bhaktaMandalis')
-          .doc(membership.mandaliId)
-          .get();
+      final mandaliId = membership.mandaliId.trim();
+      if (mandaliId.isEmpty) return null;
+
+      final doc =
+      await firestore.collection('bhaktaMandalis').doc(mandaliId).get();
 
       if (!doc.exists) return null;
 
@@ -217,14 +224,16 @@ class MyMandalisScreen extends StatelessWidget {
       final challengeStatus =
       (activeChallenge['status'] ?? '').toString().trim().toLowerCase();
 
-      final normalizedStatus = challengeStatus.isEmpty ? 'active' : challengeStatus;
+      final normalizedStatus =
+      challengeStatus.isEmpty ? 'active' : challengeStatus;
       final isCompleted = normalizedStatus == 'completed';
       final isActiveChallenge = normalizedStatus == 'active';
-      final isSelected = !isCompleted && selectedMandaliId == membership.mandaliId;
+      final isSelected = !isCompleted && selectedMandaliId == mandaliId;
 
       return _MandaliCardData(
-        mandaliId: membership.mandaliId,
-        displayName: (data['displayName'] ?? data['name'] ?? 'Bhakta Mandali')
+        mandaliId: mandaliId,
+        displayName:
+        (data['displayName'] ?? data['name'] ?? 'Bhakta Mandali')
             .toString(),
         description: (data['description'] ?? '').toString(),
         memberCount: _asInt(data['memberCount']),
@@ -240,7 +249,8 @@ class MyMandalisScreen extends StatelessWidget {
       );
     }).toList();
 
-    final items = (await Future.wait(futures)).whereType<_MandaliCardData>().toList();
+    final items =
+    (await Future.wait(futures)).whereType<_MandaliCardData>().toList();
 
     items.sort((a, b) {
       int rank(_MandaliCardData x) {
@@ -253,7 +263,9 @@ class MyMandalisScreen extends StatelessWidget {
       final rankCompare = rank(a).compareTo(rank(b));
       if (rankCompare != 0) return rankCompare;
 
-      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+      return a.displayName.toLowerCase().compareTo(
+        b.displayName.toLowerCase(),
+      );
     });
 
     return items;

@@ -1,3 +1,4 @@
+import 'package:eramakoti/features/intro/devotional_intro_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:eramakoti/app/router/route_names.dart';
@@ -37,10 +38,12 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      debugPrint('SPLASH_CHECK going to auth gate');
+      debugPrint('SPLASH_CHECK going to devotional intro');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const AuthGate(),
+          builder: (_) => const DevotionalIntroScreen(
+            nextScreen: AuthGate(),
+          ),
         ),
       );
     } catch (e, st) {
@@ -51,7 +54,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const AuthGate(),
+          builder: (_) => const DevotionalIntroScreen(
+            nextScreen: AuthGate(),
+          ),
         ),
       );
     }

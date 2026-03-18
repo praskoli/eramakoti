@@ -43,13 +43,27 @@ class BhaktaMandaliService {
   Stream<List<UserMandaliMembership>> watchMyMandalis(String uid) {
     return _userMandalisRef(uid).snapshots().map((snapshot) {
       final items = snapshot.docs
-          .map((doc) => UserMandaliMembership.fromMap(doc.data()))
+          .map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+
+        final storedMandaliId =
+        (data['mandaliId'] ?? '').toString().trim();
+        if (storedMandaliId.isEmpty) {
+          data['mandaliId'] = doc.id;
+        }
+
+        return UserMandaliMembership.fromMap(data);
+      })
+          .where((item) => item.mandaliId.trim().isNotEmpty)
+          .where((item) => item.status.trim().toLowerCase() != 'left')
           .toList();
 
       items.sort((a, b) {
         if (a.isSelectedActiveMandali && !b.isSelectedActiveMandali) return -1;
         if (!a.isSelectedActiveMandali && b.isSelectedActiveMandali) return 1;
-        return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        return a.displayName.toLowerCase().compareTo(
+          b.displayName.toLowerCase(),
+        );
       });
 
       return items;
@@ -69,7 +83,9 @@ class BhaktaMandaliService {
       items.sort((a, b) {
         final byCount = b.totalCount.compareTo(a.totalCount);
         if (byCount != 0) return byCount;
-        return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        return a.displayName.toLowerCase().compareTo(
+          b.displayName.toLowerCase(),
+        );
       });
 
       if (normalizedQuery.isEmpty) {
@@ -85,7 +101,11 @@ class BhaktaMandaliService {
   }
 
   Stream<List<BhaktaMandali>> watchGlobalLeaderboard({int limit = 50}) {
-    return _mandalis().orderBy('totalCount', descending: true).limit(limit).snapshots().map(
+    return _mandalis()
+        .orderBy('totalCount', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
           (snapshot) => snapshot.docs
           .map((doc) => BhaktaMandali.fromMap(doc.data()))
           .toList(),
@@ -162,7 +182,9 @@ class BhaktaMandaliService {
 
     final challenge = BhaktaMandaliChallenge(
       challengeId: challengeId,
-      title: challengeTitle.trim().isEmpty ? 'Rama Nama Challenge' : challengeTitle.trim(),
+      title: challengeTitle.trim().isEmpty
+          ? 'Rama Nama Challenge'
+          : challengeTitle.trim(),
       target: challengeTarget,
       progressCount: 0,
       status: 'active',
@@ -284,23 +306,56 @@ class BhaktaMandaliService {
       final mandali = BhaktaMandali.fromMap(mandaliData);
 
       if (memberSnap.exists || userMirrorSnap.exists) {
+        final existingMemberData = memberSnap.data() ?? <String, dynamic>{};
+        final existingMirrorData = userMirrorSnap.data() ?? <String, dynamic>{};
+
         tx.set(
           memberRef,
           {
-            'status': 'active',
+            'uid': user.uid,
             'displayName': (user.displayName ?? 'Devotee').trim(),
             'photoUrl': (user.photoURL ?? '').trim(),
+            'role': (existingMemberData['role'] ?? 'member').toString(),
+            'status': 'active',
+            'joinedAt': (existingMemberData['joinedAt'] ?? nowIso).toString(),
+            'updatedAt': nowIso,
+            'contributionCount':
+            (existingMemberData['contributionCount'] as num?)?.toInt() ?? 0,
+            'challengeContributionCount':
+            (existingMemberData['challengeContributionCount'] as num?)
+                ?.toInt() ??
+                0,
+            'lastContributionAt': existingMemberData['lastContributionAt'],
           },
           SetOptions(merge: true),
         );
+
         tx.set(
           userMirrorRef,
           {
-            'status': 'active',
+            'mandaliId': mandali.mandaliId,
             'displayName': mandali.displayName,
+            'category': mandali.category,
+            'description': mandali.description,
+            'inviteCode': mandali.inviteCode,
+            'createdBy': mandali.createdBy,
+            'role': (existingMirrorData['role'] ?? 'member').toString(),
+            'status': 'active',
+            'joinedAt': (existingMirrorData['joinedAt'] ?? nowIso).toString(),
+            'contributionCount':
+            (existingMirrorData['contributionCount'] as num?)?.toInt() ?? 0,
+            'challengeContributionCount':
+            (existingMirrorData['challengeContributionCount'] as num?)
+                ?.toInt() ??
+                0,
+            'isSelectedActiveMandali':
+            existingMirrorData['isSelectedActiveMandali'] == true,
+            'lastContributionAt': existingMirrorData['lastContributionAt'],
+            'updatedAt': nowIso,
           },
           SetOptions(merge: true),
         );
+
         return;
       }
 
@@ -368,14 +423,23 @@ class BhaktaMandaliService {
         throw Exception('Creator cannot leave the Mandali in MVP');
       }
 
-      tx.set(memberRef, {'status': 'left', 'updatedAt': nowIso}, SetOptions(merge: true));
-      tx.set(mirrorRef, {'status': 'left', 'updatedAt': nowIso}, SetOptions(merge: true));
+      tx.set(
+        memberRef,
+        {'status': 'left', 'updatedAt': nowIso},
+        SetOptions(merge: true),
+      );
+      tx.set(
+        mirrorRef,
+        {'status': 'left', 'updatedAt': nowIso},
+        SetOptions(merge: true),
+      );
       tx.update(_mandaliRef(mandaliId), {
         'memberCount': FieldValue.increment(-1),
         'updatedAt': nowIso,
       });
 
-      final activeMandaliId = (summarySnap.data()?['activeMandaliId'] ?? '').toString();
+      final activeMandaliId =
+      (summarySnap.data()?['activeMandaliId'] ?? '').toString();
       if (activeMandaliId == mandaliId) {
         tx.set(
           summaryRef,
@@ -467,6 +531,7 @@ class BhaktaMandaliService {
         'Install the app:\n'
         'https://play.google.com/store/apps/details?id=com.hindu.pooja';
   }
+
   Future<String> _generateUniqueInviteCode() async {
     for (var i = 0; i < 10; i++) {
       final code = _randomCode(8);

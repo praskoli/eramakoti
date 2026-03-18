@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eramakoti/features/auth/auth_gate.dart';
+import 'package:eramakoti/features/intro/devotional_intro_screen.dart';
 import 'package:eramakoti/screens/system/force_update_screen.dart';
 import 'package:eramakoti/services/app_update_service.dart';
 
@@ -34,7 +35,9 @@ class _StartupScreenState extends State<StartupScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const AuthGate(),
+          builder: (_) => const DevotionalIntroScreen(
+            nextScreen: AuthGate(),
+          ),
         ),
       );
     } catch (_) {
@@ -42,7 +45,10 @@ class _StartupScreenState extends State<StartupScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const AuthGate(),
+          builder: (_) => const DevotionalIntroScreen(
+            nextScreen: AuthGate(),
+            duration: Duration(milliseconds: 2500),
+          ),
         ),
       );
     }

@@ -37,20 +37,22 @@ class UserMandaliMembership {
   DateTime? get lastContributionAt => _parseDate(lastContributionAtIso);
 
   factory UserMandaliMembership.fromMap(Map<String, dynamic> map) {
+    final displayName = (map['displayName'] ?? '').toString().trim();
+
     return UserMandaliMembership(
-      mandaliId: (map['mandaliId'] ?? '').toString(),
-      displayName: (map['displayName'] ?? '').toString(),
-      category: (map['category'] ?? '').toString(),
-      description: (map['description'] ?? '').toString(),
-      inviteCode: (map['inviteCode'] ?? '').toString(),
-      createdBy: (map['createdBy'] ?? '').toString(),
-      role: (map['role'] ?? 'member').toString(),
-      status: (map['status'] ?? 'active').toString(),
+      mandaliId: (map['mandaliId'] ?? '').toString().trim(),
+      displayName: displayName.isEmpty ? 'Bhakta Mandali' : displayName,
+      category: (map['category'] ?? '').toString().trim(),
+      description: (map['description'] ?? '').toString().trim(),
+      inviteCode: (map['inviteCode'] ?? '').toString().trim(),
+      createdBy: (map['createdBy'] ?? '').toString().trim(),
+      role: (map['role'] ?? 'member').toString().trim(),
+      status: (map['status'] ?? 'active').toString().trim(),
       contributionCount: (map['contributionCount'] as num?)?.toInt() ?? 0,
       challengeContributionCount:
       (map['challengeContributionCount'] as num?)?.toInt() ?? 0,
       isSelectedActiveMandali: map['isSelectedActiveMandali'] == true,
-      joinedAtIso: (map['joinedAt'] ?? '').toString(),
+      joinedAtIso: (map['joinedAt'] ?? '').toString().trim(),
       lastContributionAtIso: map['lastContributionAt']?.toString(),
     );
   }
