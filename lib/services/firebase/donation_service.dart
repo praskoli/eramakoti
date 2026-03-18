@@ -9,18 +9,15 @@ class DonationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// USER DONATIONS COLLECTION
   CollectionReference<Map<String, dynamic>> get _userDonations =>
       _db
           .collection('users')
           .doc(_auth.currentUser!.uid)
           .collection('donations');
 
-  /// GLOBAL SUPPORT WALL
   CollectionReference<Map<String, dynamic>> get _supportWall =>
       _db.collection('support_wall');
 
-  /// CREATE DONATION
   Future<String> createDonation({
     required int amount,
     required String source,
@@ -28,42 +25,35 @@ class DonationService {
     bool anonymous = false,
     String supporterName = '',
     String supporterMessage = '',
-
-    /// INDIVIDUAL | MANDALI
     String supportType = 'individual',
-
-    /// OPTIONAL MANDALI CONTEXT
     String? sourceMandaliId,
     String? sourceMandaliName,
     String? sourceChallengeId,
   }) async {
-    final uid = _auth.currentUser!.uid;
+    final user = _auth.currentUser!;
+    final uid = user.uid;
+    final fallbackDisplayName = (user.displayName ?? '').trim();
+
+    final resolvedSupporterName =
+    supporterName.trim().isNotEmpty ? supporterName.trim() : fallbackDisplayName;
 
     final doc = _userDonations.doc();
 
     await doc.set({
       'donationId': doc.id,
       'uid': uid,
-
       'amount': amount,
       'note': note,
       'source': source,
-
-      /// SUPPORT TYPE
       'supportType': supportType,
-
-      /// Mandali context
       'sourceMandaliId': sourceMandaliId,
       'sourceMandaliName': sourceMandaliName,
       'sourceChallengeId': sourceChallengeId,
-
-      'supporterName': supporterName,
-      'supporterMessage': supporterMessage,
+      'userDisplayName': fallbackDisplayName,
+      'supporterName': resolvedSupporterName,
+      'supporterMessage': supporterMessage.trim(),
       'anonymous': anonymous,
-
-      /// pending → returned → verified
       'status': 'pending',
-
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -71,7 +61,6 @@ class DonationService {
     return doc.id;
   }
 
-  /// MARK DONATION RETURNED AFTER UPI APP
   Future<void> markDonationReturned({
     required String donationId,
   }) async {
@@ -83,25 +72,21 @@ class DonationService {
     });
   }
 
-  /// WATCH SUPPORT WALL (GLOBAL)
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportWall({
-    int limit = 20,
+    int limit = 8,
   }) {
     return _supportWall
-        .where('verified', isEqualTo: true)
         .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots();
   }
 
-  /// USER DONATION HISTORY
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMyDonations() {
     return _userDonations
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  /// SUPPORT HISTORY (ALIAS USED BY SUPPORT SCREEN)
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportHistory({
     int limit = 50,
   }) {

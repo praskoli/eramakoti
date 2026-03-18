@@ -1,5 +1,8 @@
+import 'package:eramakoti/screens/donation_transparency_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:eramakoti/services/auth/google_sign_in_service.dart';
 import 'package:eramakoti/services/auth/auth_service.dart';
@@ -23,10 +26,81 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _isFacebookLoading = false;
-
+  bool _hasAcceptedPolicies = false;
+  bool _showConsentHelper = false;
+  void _openDonationTransparency() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const DonationTransparencyScreen(),
+      ),
+    );
+  }
   static const bool _showFacebookLogin = true;
 
+  static const String _privacyAndTermsUrl =
+      'https://hindupoojaapp.firebaseapp.com/privacy';
+  static const String _deleteAccountUrl =
+      'https://hindupoojaapp.firebaseapp.com/delete-account';
+  static const String _qtiLabsUrl = 'https://www.qtilabs.com/';
+  static const String _termsPopupSeenKey = 'eramakoti_terms_popup_seen';
+  static const String _termsVersion = 'v1';
+
   bool get _isAnyLoading => _isGoogleLoading || _isFacebookLoading;
+
+  @override
+  void initState() {
+    super.initState();
+    _showTermsPopupIfNeeded();
+  }
+
+  Future<void> _showTermsPopupIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadySeen = prefs.getBool(_termsPopupSeenKey) ?? false;
+
+    if (alreadySeen || !mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Privacy & Terms',
+              textAlign: TextAlign.center,
+            ),
+            content: const Text(
+              'Please review our Privacy Policy and Terms & Conditions.\n\n'
+                  'By continuing to sign in, you agree to them.',
+              textAlign: TextAlign.center,
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await _openUrl(_privacyAndTermsUrl);
+                },
+                child: const Text('View'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+
+      await prefs.setBool(_termsPopupSeenKey, true);
+    });
+  }
 
   Future<void> _showAccountExistsDialog() async {
     if (!mounted) return;
@@ -64,8 +138,35 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<bool> _ensureConsentAccepted() async {
+    if (_hasAcceptedPolicies) return true;
+
+    if (mounted) {
+      setState(() => _showConsentHelper = true);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please accept Privacy Policy and Terms & Conditions to continue.',
+          ),
+        ),
+      );
+    }
+
+    return false;
+  }
+
+  Future<void> _saveTermsAcceptance(User user) async {
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'termsAccepted': true,
+      'termsAcceptedAt': FieldValue.serverTimestamp(),
+      'termsVersion': _termsVersion,
+    }, SetOptions(merge: true));
+  }
+
   Future<void> _handleGoogleSignIn() async {
     if (_isAnyLoading) return;
+    if (!await _ensureConsentAccepted()) return;
 
     setState(() => _isGoogleLoading = true);
 
@@ -77,6 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = cred?.user;
       if (user != null) {
         await FirestoreService.instance.bootstrapUser(user);
+        await _saveTermsAcceptance(user);
 
         if (!mounted) return;
 
@@ -114,6 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleFacebookSignIn() async {
     if (_isAnyLoading) return;
+    if (!await _ensureConsentAccepted()) return;
 
     setState(() => _isFacebookLoading = true);
 
@@ -125,6 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = cred?.user;
       if (user != null) {
         await FirestoreService.instance.bootstrapUser(user);
+        await _saveTermsAcceptance(user);
 
         if (!mounted) return;
 
@@ -160,14 +264,46 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _openQtiLabsWebsite() async {
-    final url = Uri.parse('https://www.qtilabs.com/');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(
-        url,
+  Future<void> _openUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+
+    try {
+      final launched = await launchUrl(
+        uri,
         mode: LaunchMode.externalApplication,
       );
+
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to open link. Please try again.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open link. Please try again.'),
+        ),
+      );
     }
+  }
+
+  Future<void> _openQtiLabsWebsite() async {
+    await _openUrl(_qtiLabsUrl);
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await _openUrl(_privacyAndTermsUrl);
+  }
+
+  Future<void> _openTermsAndConditions() async {
+    await _openUrl(_privacyAndTermsUrl);
+  }
+
+  Future<void> _openDeleteAccount() async {
+    await _openUrl(_deleteAccountUrl);
   }
 
   @override
@@ -267,7 +403,151 @@ class _LoginScreenState extends State<LoginScreen> {
                                         isLoading: _isFacebookLoading,
                                       ),
                                     ],
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                      children: [
+                                        Checkbox(
+                                          value: _hasAcceptedPolicies,
+                                          onChanged: _isAnyLoading
+                                              ? null
+                                              : (value) {
+                                            setState(() {
+                                              _hasAcceptedPolicies =
+                                                  value ?? false;
+                                              if (_hasAcceptedPolicies) {
+                                                _showConsentHelper = false;
+                                              }
+                                            });
+                                          },
+                                          activeColor:
+                                          LoginScreen.facebookBlue,
+                                          visualDensity:
+                                          VisualDensity.compact,
+                                        ),
+                                        Expanded(
+                                          child: Padding(
+                                            padding:
+                                            const EdgeInsets.only(top: 10),
+                                            child: Wrap(
+                                              alignment: WrapAlignment.start,
+                                              crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                              children: [
+                                                const Text(
+                                                  'I agree to ',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: LoginScreen.subText,
+                                                    height: 1.4,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap: _openPrivacyPolicy,
+                                                  child: const Text(
+                                                    'Privacy Policy',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: LoginScreen
+                                                          .facebookBlue,
+                                                      fontWeight:
+                                                      FontWeight.w600,
+                                                      decoration: TextDecoration
+                                                          .underline,
+                                                      height: 1.4,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const Text(
+                                                  ' and ',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: LoginScreen.subText,
+                                                    height: 1.4,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap:
+                                                  _openTermsAndConditions,
+                                                  child: const Text(
+                                                    'Terms & Conditions',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: LoginScreen
+                                                          .facebookBlue,
+                                                      fontWeight:
+                                                      FontWeight.w600,
+                                                      decoration: TextDecoration
+                                                          .underline,
+                                                      height: 1.4,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_showConsentHelper)
+                                      const Padding(
+                                        padding: EdgeInsets.only(
+                                          top: 4,
+                                          left: 8,
+                                          right: 8,
+                                        ),
+                                        child: Text(
+                                          'Please accept the Privacy Policy and Terms & Conditions to continue.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.redAccent,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
                                   ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: _openDeleteAccount,
+                                child: const Text(
+                                  'Delete Account',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: LoginScreen.subText,
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              GestureDetector(
+                                onTap: _openDonationTransparency,
+                                child: const Text(
+                                  'Donation Transparency',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: LoginScreen.subText,
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(
+                                  'Login is free. Any support offered in the app is voluntary.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: LoginScreen.subText,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                               SizedBox(height: poweredGap),
@@ -393,7 +673,8 @@ class _FacebookLoginButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(32),
           ),
-          disabledBackgroundColor: LoginScreen.facebookBlue.withOpacity(0.75),
+          disabledBackgroundColor:
+          LoginScreen.facebookBlue.withOpacity(0.75),
         ),
         child: isLoading
             ? const SizedBox(
