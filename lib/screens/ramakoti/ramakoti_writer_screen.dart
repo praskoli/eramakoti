@@ -1389,7 +1389,7 @@ class _GlobalRamCountCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Jai Shri Ram written across devotees',
+            'Jai Shri Ram written In App across devotees',
             style: TextStyle(
               fontSize: 11,
               color: _RamakotiWriterScreenState._textSecondary,

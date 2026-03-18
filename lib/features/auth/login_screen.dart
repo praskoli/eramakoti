@@ -528,7 +528,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               GestureDetector(
                                 onTap: _openDonationTransparency,
                                 child: const Text(
-                                  'Donation Transparency',
+                                  'Offer Support Transparency',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: LoginScreen.subText,

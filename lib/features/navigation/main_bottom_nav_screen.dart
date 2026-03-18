@@ -23,6 +23,7 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
   static const Color _softBorder = Color(0xFFEADFD2);
 
   late int _currentIndex;
+  late final PageController _pageController;
 
   late final List<Widget> _screens = const [
     HomeScreen(),
@@ -35,14 +36,38 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 3);
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onNavTap(int index) {
+    if (_currentIndex == index) return;
+
+    setState(() => _currentIndex = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _onPageChanged(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
         children: _screens,
       ),
       bottomNavigationBar: SafeArea(
@@ -68,28 +93,28 @@ class _MainBottomNavScreenState extends State<MainBottomNavScreen> {
                 label: 'Home',
                 icon: Icons.home_rounded,
                 selected: _currentIndex == 0,
-                onTap: () => setState(() => _currentIndex = 0),
+                onTap: () => _onNavTap(0),
               ),
               const SizedBox(width: 8),
               _NavItem(
                 label: 'History',
                 icon: Icons.auto_stories_rounded,
                 selected: _currentIndex == 1,
-                onTap: () => setState(() => _currentIndex = 1),
+                onTap: () => _onNavTap(1),
               ),
               const SizedBox(width: 8),
               _NavItem(
                 label: 'Mandali',
                 icon: Icons.groups_rounded,
                 selected: _currentIndex == 2,
-                onTap: () => setState(() => _currentIndex = 2),
+                onTap: () => _onNavTap(2),
               ),
               const SizedBox(width: 8),
               _NavItem(
                 label: 'Profile',
                 icon: Icons.account_circle_rounded,
                 selected: _currentIndex == 3,
-                onTap: () => setState(() => _currentIndex = 3),
+                onTap: () => _onNavTap(3),
               ),
             ],
           ),

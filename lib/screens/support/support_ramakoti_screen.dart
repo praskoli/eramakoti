@@ -83,7 +83,25 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     if (date == null) return '—';
     return DateFormat('dd MMM yyyy, hh:mm a').format(date);
   }
+  String _formatIndianNumber(int value) {
+    final number = value.toString();
+    if (number.length <= 3) return number;
 
+    final last3 = number.substring(number.length - 3);
+    var remaining = number.substring(0, number.length - 3);
+    final parts = <String>[];
+
+    while (remaining.length > 2) {
+      parts.insert(0, remaining.substring(remaining.length - 2));
+      remaining = remaining.substring(0, remaining.length - 2);
+    }
+
+    if (remaining.isNotEmpty) {
+      parts.insert(0, remaining);
+    }
+
+    return '${parts.join(',')},$last3';
+  }
   Future<void> _copyText(String label, String value) async {
     await Clipboard.setData(ClipboardData(text: value));
     if (!mounted) return;
@@ -420,39 +438,76 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
                               _supportContextCard(),
                             ],
                             const SizedBox(height: 16),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: _softAccent,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Global Ram Count',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: _textSecondary,
-                                    ),
+                            StreamBuilder<int>(
+                              stream: RamakotiService.instance.watchGlobalDevotionCount(),
+                              builder: (context, devotionSnapshot) {
+                                final globalDevotionTotal = devotionSnapshot.data ?? globalTotal;
+
+                                return Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: _softAccent,
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    globalTotal.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w800,
-                                      color: _textPrimary,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Global Ram Count',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: _textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _formatIndianNumber(globalTotal),
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w800,
+                                          color: _textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Sri Rama Nama written inside the app only.',
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 14),
+                                      const Divider(height: 1),
+                                      const SizedBox(height: 14),
+                                      const Text(
+                                        'Global Devotion Count',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: _textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _formatIndianNumber(globalDevotionTotal),
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w800,
+                                          color: _textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Includes in-app writing, manual writing, japa, and additional devotional entries.',
+                                        style: TextStyle(
+                                          color: _textSecondary,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Jai Shri Ram written across devotees',
-                                    style: TextStyle(color: _textSecondary),
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
                           ],
                         ),

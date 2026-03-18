@@ -9,6 +9,7 @@ import '../../services/firebase/profile_service.dart';
 import 'edit_profile_screen.dart';
 import '../auth/login_screen.dart';
 import '../../screens/support/support_ramakoti_screen.dart';
+import '../devotion/personal_summary_devotion_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -104,6 +105,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    _DevotionEntryCard(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PersonalSummaryScreen(),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 18),
                     _ContributionCard(
@@ -972,6 +984,71 @@ class _ErrorCard extends StatelessWidget {
             child: const Text('Retry'),
           ),
         ],
+      ),
+    );
+  }
+  }
+class _DevotionEntryCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _DevotionEntryCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: onTap,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F1E8),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE5D5C5)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        child: Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(10),
+              child: const Icon(
+                Icons.self_improvement,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Personal Devotion',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF3E2A1F),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Add Japa, manual writing, and other devotion',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6A5546),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Color(0xFF6A5546),
+            ),
+          ],
+        ),
       ),
     );
   }

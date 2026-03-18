@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:share_plus/share_plus.dart';
-
+import '../devotion/personal_summary_devotion_screen.dart';
 import '../../models/ramakoti_meta.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/firebase/ramakoti_service.dart';
@@ -582,64 +582,140 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
-
                             StreamBuilder<int>(
-                              stream:
-                              RamakotiService.instance.watchGlobalRamCount(),
-                              builder: (context, globalSnapshot) {
-                                final globalCount = globalSnapshot.data ?? 0;
+                              stream: RamakotiService.instance.watchGlobalRamCount(),
+                              builder: (context, ramSnapshot) {
+                                final ramCount = ramSnapshot.data ?? 0;
 
-                                return Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: _cardColor,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(color: _softBorder),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      16,
-                                      16,
-                                      16,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Global Ram Count',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            color: _textSecondary,
+                                return StreamBuilder<int>(
+                                  stream: RamakotiService.instance.watchGlobalDevotionCount(),
+                                  builder: (context, devotionSnapshot) {
+                                    final devotionCount = devotionSnapshot.data ?? 0;
+
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        children: [
+
+                                          // 🪔 Global Ram Count
+                                          Text(
+                                            "🌍 Global Ram Count",
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          _formatIndianNumber(globalCount),
-                                          style: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w800,
-                                            color: _textPrimary,
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            ramCount.toString(),
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        const Text(
-                                          'Jai Shri Ram written across devotees',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: _textSecondary,
+                                          const Text(
+                                            "Count of Sri Rama Nama written inside the app",
+                                            style: TextStyle(fontSize: 11),
+                                            textAlign: TextAlign.center,
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+
+                                          const SizedBox(height: 12),
+
+                                          // 🙏 Global Devotion
+                                          Text(
+                                            "🙏 Global Devotion",
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            devotionCount.toString(),
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const Text(
+                                            "Includes Japa, manual writing, and other devotional practices",
+                                            style: TextStyle(fontSize: 11),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             ),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const PersonalSummaryScreen(),
+                                  ),
+                                );
+                              },
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  color: _cardColor,
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: _softBorder),
+                                ),
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: const BoxDecoration(
+                                        color: _softAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.self_improvement_rounded,
+                                        color: _accent,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Personal Devotion Summary',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: _textPrimary,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Add manual writing, japa, and additional devotional entries.',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: _textSecondary,
+                                              height: 1.45,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: _accent,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                             const SizedBox(height: 16),
-
                             Row(
                               children: [
                                 Expanded(

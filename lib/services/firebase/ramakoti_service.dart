@@ -12,6 +12,8 @@ class RamakotiService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static const String devotionConsentVersion = 'v1';
+
   CollectionReference<Map<String, dynamic>> _users() =>
       _firestore.collection('users');
 
@@ -33,7 +35,9 @@ class RamakotiService {
   DocumentReference<Map<String, dynamic>> _mandaliRef(String mandaliId) =>
       _mandalis().doc(mandaliId);
 
-  CollectionReference<Map<String, dynamic>> _mandaliMembersRef(String mandaliId) =>
+  CollectionReference<Map<String, dynamic>> _mandaliMembersRef(
+      String mandaliId,
+      ) =>
       _mandaliRef(mandaliId).collection('members');
 
   DocumentReference<Map<String, dynamic>> _userMandaliRef(
@@ -47,6 +51,78 @@ class RamakotiService {
       String challengeId,
       ) =>
       _mandaliRef(mandaliId).collection('challenges').doc(challengeId);
+
+  DocumentReference<Map<String, dynamic>> _globalRamCountRef() =>
+      _firestore.collection('global_stats').doc('ram_count_total');
+
+  DocumentReference<Map<String, dynamic>> _globalDevotionCountRef() =>
+      _firestore.collection('global_stats').doc('devotion_count_total');
+
+  int _computeDevotionTotal({
+    required int inAppWriting,
+    required int manualWriting,
+    required int japa,
+    required int additionalDevotion,
+  }) {
+    return inAppWriting + manualWriting + japa + additionalDevotion;
+  }
+
+  Future<void> _ensureGlobalDevotionCounterInitialized() async {
+    final devotionDoc = await _globalDevotionCountRef().get();
+    if (devotionDoc.exists && devotionDoc.data() != null) {
+      return;
+    }
+
+    final ramDoc = await _globalRamCountRef().get();
+    final ramCount = (ramDoc.data()?['total'] as num?)?.toInt() ?? 0;
+
+    await _globalDevotionCountRef().set(
+      {
+        'total': ramCount,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> ensureDevotionTrackingInitialized(String uid) async {
+    await _ensureGlobalDevotionCounterInitialized();
+
+    final summaryDoc = await _summaryRef(uid).get();
+    final data = summaryDoc.data();
+    if (data == null) return;
+
+    final totalCount = (data['totalCount'] as num?)?.toInt() ?? 0;
+    final manualWritingCount =
+        (data['manualWritingCount'] as num?)?.toInt() ?? 0;
+    final japaCount = (data['japaCount'] as num?)?.toInt() ?? 0;
+    final additionalDevotionCount =
+        (data['additionalDevotionCount'] as num?)?.toInt() ?? 0;
+
+    final devotionTotalCount = _computeDevotionTotal(
+      inAppWriting: totalCount,
+      manualWriting: manualWritingCount,
+      japa: japaCount,
+      additionalDevotion: additionalDevotionCount,
+    );
+
+    await _summaryRef(uid).set(
+      {
+        'uid': uid,
+        'manualWritingCount': manualWritingCount,
+        'japaCount': japaCount,
+        'additionalDevotionCount': additionalDevotionCount,
+        'devotionTotalCount': devotionTotalCount,
+        'devotionConsentAccepted':
+        (data['devotionConsentAccepted'] as bool?) ?? false,
+        'devotionConsentVersion':
+        (data['devotionConsentVersion'] as String? ?? '').trim(),
+        'devotionConsentAcceptedAt': data['devotionConsentAcceptedAt'],
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
 
   Future<Map<String, dynamic>?> getCertificateMetadata({
     required String uid,
@@ -169,9 +245,6 @@ class RamakotiService {
     return null;
   }
 
-  DocumentReference<Map<String, dynamic>> _globalRamCountRef() =>
-      _firestore.collection('global_stats').doc('ram_count_total');
-
   Stream<RamakotiMeta> watchSummary(String uid) {
     return _summaryRef(uid).snapshots().map((doc) {
       final data = doc.data();
@@ -226,6 +299,33 @@ class RamakotiService {
     final data = doc.data();
     if (data == null) return 0;
     return (data['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Stream<int> watchGlobalDevotionCount() {
+    return _globalDevotionCountRef().snapshots().asyncMap((doc) async {
+      final data = doc.data();
+      if (data == null) {
+        return getGlobalRamCount();
+      }
+      final total = (data['total'] as num?)?.toInt();
+      if (total == null || total <= 0) {
+        return getGlobalRamCount();
+      }
+      return total;
+    });
+  }
+
+  Future<int> getGlobalDevotionCount() async {
+    final doc = await _globalDevotionCountRef().get();
+    final data = doc.data();
+    if (data == null) {
+      return getGlobalRamCount();
+    }
+    final total = (data['total'] as num?)?.toInt();
+    if (total == null || total <= 0) {
+      return getGlobalRamCount();
+    }
+    return total;
   }
 
   Future<void> saveLanguageAndTarget({
@@ -284,6 +384,15 @@ class RamakotiService {
       final summaryDoc = await tx.get(_summaryRef(uid));
       final existing = summaryDoc.data() ?? <String, dynamic>{};
 
+      final manualWritingCount =
+          (existing['manualWritingCount'] as num?)?.toInt() ??
+              summary.manualWritingCount;
+      final japaCount =
+          (existing['japaCount'] as num?)?.toInt() ?? summary.japaCount;
+      final additionalDevotionCount =
+          (existing['additionalDevotionCount'] as num?)?.toInt() ??
+              summary.additionalDevotionCount;
+
       tx.set(
         _runsRef(uid).doc(runId),
         {
@@ -327,6 +436,25 @@ class RamakotiService {
           'milestoneCount':
           (existing['milestoneCount'] as num?)?.toInt() ??
               summary.milestoneCount,
+          'manualWritingCount': manualWritingCount,
+          'japaCount': japaCount,
+          'additionalDevotionCount': additionalDevotionCount,
+          'devotionTotalCount': _computeDevotionTotal(
+            inAppWriting: summary.totalCount,
+            manualWriting: manualWritingCount,
+            japa: japaCount,
+            additionalDevotion: additionalDevotionCount,
+          ),
+          'devotionConsentAccepted':
+          (existing['devotionConsentAccepted'] as bool?) ??
+              summary.devotionConsentAccepted,
+          'devotionConsentVersion':
+          (existing['devotionConsentVersion'] as String? ??
+              summary.devotionConsentVersion)
+              .trim(),
+          'devotionConsentAcceptedAt':
+          existing['devotionConsentAcceptedAt'] ??
+              summary.devotionConsentAcceptedAt?.toIso8601String(),
           'lastWrittenAt': existing['lastWrittenAt'],
           'createdAt': existing['createdAt'] ?? nowIso,
           'updatedAt': nowIso,
@@ -358,6 +486,11 @@ class RamakotiService {
     final todayCount = (summaryData['todayCount'] as num?)?.toInt() ?? 0;
     final completedRunsCount =
         (summaryData['completedRunsCount'] as num?)?.toInt() ?? 0;
+    final manualWritingCount =
+        (summaryData['manualWritingCount'] as num?)?.toInt() ?? 0;
+    final japaCount = (summaryData['japaCount'] as num?)?.toInt() ?? 0;
+    final additionalDevotionCount =
+        (summaryData['additionalDevotionCount'] as num?)?.toInt() ?? 0;
 
     final activeMandaliId =
     (summaryData['activeMandaliId'] as String? ?? '').trim();
@@ -369,6 +502,8 @@ class RamakotiService {
     if (targetCount > 0 && currentRunCount >= targetCount) {
       throw Exception('Current Ramakoti target is already completed.');
     }
+
+    await _ensureGlobalDevotionCounterInitialized();
 
     final newRunCount = currentRunCount + 1;
     final newTotalCount = totalCount + 1;
@@ -392,6 +527,7 @@ class RamakotiService {
 
     final runDocRef = _runsRef(uid).doc(currentRunId);
     final globalDocRef = _globalRamCountRef();
+    final globalDevotionDocRef = _globalDevotionCountRef();
 
     batch.set(
       runDocRef,
@@ -418,6 +554,12 @@ class RamakotiService {
         'completedBatchCount': newCompletedBatchCount,
         'currentBatchNumber': newCurrentBatchNumber,
         'currentBatchProgress': newCurrentBatchProgress,
+        'devotionTotalCount': _computeDevotionTotal(
+          inAppWriting: newTotalCount,
+          manualWriting: manualWritingCount,
+          japa: japaCount,
+          additionalDevotion: additionalDevotionCount,
+        ),
         'lastWrittenAt': nowIso,
         'updatedAt': nowIso,
         if (runCompleted) 'completedRunsCount': completedRunsCount + 1,
@@ -427,6 +569,15 @@ class RamakotiService {
 
     batch.set(
       globalDocRef,
+      {
+        'total': FieldValue.increment(1),
+        'updatedAt': nowIso,
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      globalDevotionDocRef,
       {
         'total': FieldValue.increment(1),
         'updatedAt': nowIso,
@@ -566,6 +717,81 @@ class RamakotiService {
     );
   }
 
+  Future<void> addPersonalDevotion({
+    required String uid,
+    required int manualWritingIncrement,
+    required int japaIncrement,
+    required int additionalDevotionIncrement,
+    required bool consentConfirmed,
+  }) async {
+    if (!consentConfirmed) {
+      throw Exception('Please confirm your devotional entries before saving.');
+    }
+
+    final totalIncrement =
+        manualWritingIncrement + japaIncrement + additionalDevotionIncrement;
+
+    if (totalIncrement <= 0) {
+      throw Exception('Please select at least one devotional entry.');
+    }
+
+    await _ensureGlobalDevotionCounterInitialized();
+
+    final summaryRef = _summaryRef(uid);
+    final globalDevotionRef = _globalDevotionCountRef();
+    final nowIso = DateTime.now().toIso8601String();
+
+    await _firestore.runTransaction((tx) async {
+      final summarySnap = await tx.get(summaryRef);
+      final data = summarySnap.data() ?? <String, dynamic>{};
+
+      final totalCount = (data['totalCount'] as num?)?.toInt() ?? 0;
+      final currentManualWritingCount =
+          (data['manualWritingCount'] as num?)?.toInt() ?? 0;
+      final currentJapaCount = (data['japaCount'] as num?)?.toInt() ?? 0;
+      final currentAdditionalDevotionCount =
+          (data['additionalDevotionCount'] as num?)?.toInt() ?? 0;
+
+      final newManualWritingCount =
+          currentManualWritingCount + manualWritingIncrement;
+      final newJapaCount = currentJapaCount + japaIncrement;
+      final newAdditionalDevotionCount =
+          currentAdditionalDevotionCount + additionalDevotionIncrement;
+
+      final newDevotionTotalCount = _computeDevotionTotal(
+        inAppWriting: totalCount,
+        manualWriting: newManualWritingCount,
+        japa: newJapaCount,
+        additionalDevotion: newAdditionalDevotionCount,
+      );
+
+      tx.set(
+        summaryRef,
+        {
+          'uid': uid,
+          'manualWritingCount': newManualWritingCount,
+          'japaCount': newJapaCount,
+          'additionalDevotionCount': newAdditionalDevotionCount,
+          'devotionTotalCount': newDevotionTotalCount,
+          'devotionConsentAccepted': true,
+          'devotionConsentVersion': devotionConsentVersion,
+          'devotionConsentAcceptedAt': nowIso,
+          'updatedAt': nowIso,
+        },
+        SetOptions(merge: true),
+      );
+
+      tx.set(
+        globalDevotionRef,
+        {
+          'total': FieldValue.increment(totalIncrement),
+          'updatedAt': nowIso,
+        },
+        SetOptions(merge: true),
+      );
+    });
+  }
+
   Future<void> activateRun({
     required String uid,
     required RamakotiRun run,
@@ -587,6 +813,19 @@ class RamakotiService {
         'completedRunsCount': summary.completedRunsCount,
         'certificatesCount': summary.certificatesCount,
         'milestoneCount': summary.milestoneCount,
+        'manualWritingCount': summary.manualWritingCount,
+        'japaCount': summary.japaCount,
+        'additionalDevotionCount': summary.additionalDevotionCount,
+        'devotionTotalCount': _computeDevotionTotal(
+          inAppWriting: summary.totalCount,
+          manualWriting: summary.manualWritingCount,
+          japa: summary.japaCount,
+          additionalDevotion: summary.additionalDevotionCount,
+        ),
+        'devotionConsentAccepted': summary.devotionConsentAccepted,
+        'devotionConsentVersion': summary.devotionConsentVersion,
+        'devotionConsentAcceptedAt':
+        summary.devotionConsentAcceptedAt?.toIso8601String(),
         'lastWrittenAt': run.lastWrittenAt?.toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       },
@@ -618,6 +857,19 @@ class RamakotiService {
         'completedRunsCount': summary.completedRunsCount,
         'certificatesCount': summary.certificatesCount,
         'milestoneCount': summary.milestoneCount,
+        'manualWritingCount': summary.manualWritingCount,
+        'japaCount': summary.japaCount,
+        'additionalDevotionCount': summary.additionalDevotionCount,
+        'devotionTotalCount': _computeDevotionTotal(
+          inAppWriting: summary.totalCount,
+          manualWriting: summary.manualWritingCount,
+          japa: summary.japaCount,
+          additionalDevotion: summary.additionalDevotionCount,
+        ),
+        'devotionConsentAccepted': summary.devotionConsentAccepted,
+        'devotionConsentVersion': summary.devotionConsentVersion,
+        'devotionConsentAcceptedAt':
+        summary.devotionConsentAcceptedAt?.toIso8601String(),
         'lastWrittenAt': run.lastWrittenAt?.toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       },

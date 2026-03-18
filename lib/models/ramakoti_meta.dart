@@ -27,6 +27,17 @@ class RamakotiMeta {
   final int certificatesCount;
   final int milestoneCount;
 
+  // Personal devotion counters
+  final int manualWritingCount;
+  final int japaCount;
+  final int additionalDevotionCount;
+  final int devotionTotalCount;
+
+  // Devotion consent
+  final bool devotionConsentAccepted;
+  final String devotionConsentVersion;
+  final DateTime? devotionConsentAcceptedAt;
+
   // Active Bhakta Mandali context
   final String activeMandaliId;
   final String activeMandaliName;
@@ -52,6 +63,13 @@ class RamakotiMeta {
     required this.completedRunsCount,
     required this.certificatesCount,
     required this.milestoneCount,
+    required this.manualWritingCount,
+    required this.japaCount,
+    required this.additionalDevotionCount,
+    required this.devotionTotalCount,
+    required this.devotionConsentAccepted,
+    required this.devotionConsentVersion,
+    required this.devotionConsentAcceptedAt,
     required this.activeMandaliId,
     required this.activeMandaliName,
     required this.activeMandaliChallengeId,
@@ -62,32 +80,52 @@ class RamakotiMeta {
   });
 
   factory RamakotiMeta.fromMap(Map<String, dynamic> map) {
+    final totalCount = (map['totalCount'] as num?)?.toInt() ?? 0;
+    final manualWritingCount =
+        (map['manualWritingCount'] as num?)?.toInt() ?? 0;
+    final japaCount = (map['japaCount'] as num?)?.toInt() ?? 0;
+    final additionalDevotionCount =
+        (map['additionalDevotionCount'] as num?)?.toInt() ?? 0;
+
+    final computedDevotionTotal = totalCount +
+        manualWritingCount +
+        japaCount +
+        additionalDevotionCount;
+
     return RamakotiMeta(
       uid: map['uid'] as String? ?? '',
-      totalCount: (map['totalCount'] as num?)?.toInt() ?? 0,
+      totalCount: totalCount,
       todayCount: (map['todayCount'] as num?)?.toInt() ?? 0,
       currentRunCount: (map['currentRunCount'] as num?)?.toInt() ?? 0,
       currentRunId: map['currentRunId'] as String? ?? '',
-
       storedCurrentBatchNumber:
       (map['currentBatchNumber'] as num?)?.toInt() ?? 1,
       storedCurrentBatchProgress:
       (map['currentBatchProgress'] as num?)?.toInt() ?? 0,
       storedCompletedBatchCount:
       (map['completedBatchCount'] as num?)?.toInt() ?? 0,
-
       language: map['language'] as String? ?? '',
       targetCount: (map['targetCount'] as num?)?.toInt() ?? 0,
-
       completedRunsCount: (map['completedRunsCount'] as num?)?.toInt() ?? 0,
       certificatesCount: (map['certificatesCount'] as num?)?.toInt() ?? 0,
       milestoneCount: (map['milestoneCount'] as num?)?.toInt() ?? 0,
-
+      manualWritingCount: manualWritingCount,
+      japaCount: japaCount,
+      additionalDevotionCount: additionalDevotionCount,
+      devotionTotalCount:
+      (map['devotionTotalCount'] as num?)?.toInt() ?? computedDevotionTotal,
+      devotionConsentAccepted:
+      (map['devotionConsentAccepted'] as bool?) ?? false,
+      devotionConsentVersion:
+      (map['devotionConsentVersion'] as String? ?? '').trim(),
+      devotionConsentAcceptedAt:
+      _parseDate(map['devotionConsentAcceptedAt']),
       activeMandaliId: map['activeMandaliId'] as String? ?? '',
       activeMandaliName: map['activeMandaliName'] as String? ?? '',
-      activeMandaliChallengeId: map['activeMandaliChallengeId'] as String? ?? '',
-      lastMandaliContributionAt: _parseDate(map['lastMandaliContributionAt']),
-
+      activeMandaliChallengeId:
+      map['activeMandaliChallengeId'] as String? ?? '',
+      lastMandaliContributionAt:
+      _parseDate(map['lastMandaliContributionAt']),
       lastWrittenAt: _parseDate(map['lastWrittenAt']),
       createdAt: _parseDate(map['createdAt']),
       updatedAt: _parseDate(map['updatedAt']),
@@ -123,6 +161,13 @@ class RamakotiMeta {
       completedRunsCount: 0,
       certificatesCount: 0,
       milestoneCount: 0,
+      manualWritingCount: 0,
+      japaCount: 0,
+      additionalDevotionCount: 0,
+      devotionTotalCount: 0,
+      devotionConsentAccepted: false,
+      devotionConsentVersion: '',
+      devotionConsentAcceptedAt: null,
       activeMandaliId: '',
       activeMandaliName: '',
       activeMandaliChallengeId: '',
@@ -147,6 +192,13 @@ class RamakotiMeta {
     int? completedRunsCount,
     int? certificatesCount,
     int? milestoneCount,
+    int? manualWritingCount,
+    int? japaCount,
+    int? additionalDevotionCount,
+    int? devotionTotalCount,
+    bool? devotionConsentAccepted,
+    String? devotionConsentVersion,
+    DateTime? devotionConsentAcceptedAt,
     String? activeMandaliId,
     String? activeMandaliName,
     String? activeMandaliChallengeId,
@@ -172,9 +224,21 @@ class RamakotiMeta {
       completedRunsCount: completedRunsCount ?? this.completedRunsCount,
       certificatesCount: certificatesCount ?? this.certificatesCount,
       milestoneCount: milestoneCount ?? this.milestoneCount,
+      manualWritingCount: manualWritingCount ?? this.manualWritingCount,
+      japaCount: japaCount ?? this.japaCount,
+      additionalDevotionCount:
+      additionalDevotionCount ?? this.additionalDevotionCount,
+      devotionTotalCount: devotionTotalCount ?? this.devotionTotalCount,
+      devotionConsentAccepted:
+      devotionConsentAccepted ?? this.devotionConsentAccepted,
+      devotionConsentVersion:
+      devotionConsentVersion ?? this.devotionConsentVersion,
+      devotionConsentAcceptedAt:
+      devotionConsentAcceptedAt ?? this.devotionConsentAcceptedAt,
       activeMandaliId: activeMandaliId ?? this.activeMandaliId,
       activeMandaliName: activeMandaliName ?? this.activeMandaliName,
-      activeMandaliChallengeId: activeMandaliChallengeId ?? this.activeMandaliChallengeId,
+      activeMandaliChallengeId:
+      activeMandaliChallengeId ?? this.activeMandaliChallengeId,
       lastMandaliContributionAt:
       lastMandaliContributionAt ?? this.lastMandaliContributionAt,
       lastWrittenAt: lastWrittenAt ?? this.lastWrittenAt,
@@ -182,10 +246,6 @@ class RamakotiMeta {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-
-  // ----------------------------
-  // Stored batch summary helpers
-  // ----------------------------
 
   int get completedBatchCount {
     if (storedCompletedBatchCount > 0 || currentRunCount == 0) {
@@ -225,10 +285,6 @@ class RamakotiMeta {
     return (currentBatchProgress / batchSize).clamp(0, 1).toDouble();
   }
 
-  // ----------------------------
-  // Target helpers
-  // ----------------------------
-
   bool get hasTarget => targetCount > 0;
 
   int get remainingToTarget {
@@ -245,20 +301,12 @@ class RamakotiMeta {
     return progress.clamp(0, 1).toDouble();
   }
 
-  // ----------------------------
-  // Lifetime helpers
-  // ----------------------------
-
   double get croreProgress => totalCount / 10000000;
 
   int get currentCroreNumber {
     if (totalCount <= 0) return 1;
     return ((totalCount - 1) ~/ 10000000) + 1;
   }
-
-  // ----------------------------
-  // UI helpers
-  // ----------------------------
 
   String get languageLabel =>
       language.trim().isEmpty ? 'Not selected' : language.trim();
