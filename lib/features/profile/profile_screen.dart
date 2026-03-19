@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/build/app_footer_helper.dart';
 import '../../models/user_profile.dart';
@@ -25,13 +26,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _accentDeep = Color(0xFFE8881A);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _outline = Color(0xFF9B8F86);
+  static const String _deleteAccountUrl =
+      'https://hindupoojaapp.firebaseapp.com/delete-account';
+
+  static UserProfile? _cachedProfile;
+  static String? _cachedFooterText;
 
   late Future<UserProfile> _profileFuture;
+  late Future<String> _footerFuture;
 
   @override
   void initState() {
     super.initState();
-    _profileFuture = ProfileService.instance.getOrCreateProfile();
+    _profileFuture = _loadProfile();
+    _footerFuture = _loadFooterText();
+  }
+
+  Future<UserProfile> _loadProfile({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedProfile != null) {
+      return _cachedProfile!;
+    }
+
+    final profile = await ProfileService.instance.getOrCreateProfile();
+    _cachedProfile = profile;
+    return profile;
+  }
+
+  Future<String> _loadFooterText() async {
+    if (_cachedFooterText != null) {
+      return _cachedFooterText!;
+    }
+
+    final footer = await AppFooterHelper.getFooterText();
+    _cachedFooterText = footer;
+    return footer;
   }
 
   @override
@@ -42,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: FutureBuilder<UserProfile>(
           future: _profileFuture,
           builder: (context, snapshot) {
-            final profile = snapshot.data;
+            final profile = snapshot.data ?? _cachedProfile;
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
@@ -60,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     profile == null)
                   const _ProfileLoadingCard()
-                else if (snapshot.hasError)
+                else if (snapshot.hasError && profile == null)
                   _ErrorCard(
                     message: 'Failed to load profile: ${snapshot.error}',
                     onRetry: _reloadProfile,
@@ -102,12 +130,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _SupportShortcutCard(
                       onTap: _openSupportTab,
                     ),
+                    const SizedBox(height: 18),
+                    _DeleteAccountCard(
+                      onTap: _handleDeleteAccount,
+                    ),
                   ],
                 const SizedBox(height: 26),
                 FutureBuilder<String>(
-                  future: AppFooterHelper.getFooterText(),
+                  future: _footerFuture,
                   builder: (context, snapshot) {
-                    final footerText = snapshot.data ?? 'Loading version...';
+                    final footerText =
+                        snapshot.data ?? _cachedFooterText ?? 'Loading version...';
 
                     return Container(
                       padding: const EdgeInsets.symmetric(
@@ -143,7 +176,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _reloadProfile() async {
     setState(() {
-      _profileFuture = ProfileService.instance.getOrCreateProfile();
+      _cachedProfile = null;
+      _profileFuture = _loadProfile(forceRefresh: true);
     });
   }
 
@@ -157,7 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (result == null || !mounted) return;
 
     setState(() {
-      _profileFuture = Future.value(result);
+      _cachedProfile = result;
+      _profileFuture = Future<UserProfile>.value(result);
     });
 
     _showSnackBar('Profile updated successfully.');
@@ -202,6 +237,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await AuthService.instance.signOut();
 
+      _cachedProfile = null;
+
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
@@ -210,6 +247,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (e) {
       _showSnackBar('Logout failed: $e');
+    }
+  }
+
+  Future<void> _handleDeleteAccount() async {
+    bool agreed = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: _cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: const Text('Delete Account'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Deleting your account is permanent. You may lose access to your profile and associated data.',
+                    style: TextStyle(
+                      color: _textPrimary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: agreed,
+                        activeColor: Colors.red,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            agreed = value ?? false;
+                          });
+                        },
+                      ),
+                      const Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            'I understand and agree to continue.',
+                            style: TextStyle(
+                              color: _textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: _accentDeep),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: agreed ? () => Navigator.pop(context, true) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.red.withOpacity(0.35),
+                    disabledForegroundColor: Colors.white70,
+                  ),
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    final uri = Uri.parse(_deleteAccountUrl);
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      _showSnackBar('Could not open delete account page.');
     }
   }
 
@@ -441,6 +570,79 @@ class _SupportShortcutCard extends StatelessWidget {
               ),
               child: const Text(
                 'Offer Support',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteAccountCard extends StatelessWidget {
+  const _DeleteAccountCard({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0F0),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF2C9C9)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Delete Account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2F2A25),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Permanently remove your account using the delete-account flow.',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: Color(0xFF2F2A25),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: const Text(
+                'Delete Account',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
             ),

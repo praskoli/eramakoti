@@ -47,6 +47,13 @@ class MandaliDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedMandaliId = mandaliId.trim();
+    if (normalizedMandaliId.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Invalid Mandali reference')),
+      );
+    }
+
     final user = AuthService.instance.currentUser;
     if (user == null) {
       return const Scaffold(body: Center(child: Text('No authenticated user')));
@@ -63,7 +70,7 @@ class MandaliDetailScreen extends StatelessWidget {
         ),
       ),
       body: StreamBuilder<BhaktaMandali?>(
-        stream: BhaktaMandaliService.instance.watchMandali(mandaliId),
+        stream: BhaktaMandaliService.instance.watchMandali(normalizedMandaliId),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Failed to load Mandali.\n${snapshot.error}'));
@@ -80,7 +87,7 @@ class MandaliDetailScreen extends StatelessWidget {
           final isCompleted = _isCompleted(mandali);
 
           return StreamBuilder<List<BhaktaMandaliMember>>(
-            stream: BhaktaMandaliService.instance.watchLeaderboard(mandaliId),
+            stream: BhaktaMandaliService.instance.watchLeaderboard(normalizedMandaliId),
             builder: (context, membersSnapshot) {
               final members = membersSnapshot.data ?? const <BhaktaMandaliMember>[];
 
@@ -154,14 +161,14 @@ class MandaliDetailScreen extends StatelessWidget {
                               : () async {
                             await BhaktaMandaliService.instance.setActiveMandali(
                               uid: user.uid,
-                              mandaliId: mandali.mandaliId,
+                              mandaliId: normalizedMandaliId,
                               mandaliName: mandali.displayName,
                               challengeId: mandali.activeChallengeId,
                             );
                             if (!context.mounted) return;
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => MandaliWriterScreen(mandaliId: mandali.mandaliId),
+                                builder: (_) => MandaliWriterScreen(mandaliId: normalizedMandaliId),
                               ),
                             );
                           },
@@ -180,7 +187,7 @@ class MandaliDetailScreen extends StatelessWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => MandaliCertificatesScreen(
-                                  mandaliId: mandali.mandaliId,
+                                  mandaliId: normalizedMandaliId,
                                   mandaliName: mandali.displayName,
                                 ),
                               ),
@@ -198,7 +205,7 @@ class MandaliDetailScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (_) => SupportRamakotiScreen(
                                   source: 'mandali_detail_offer_support',
-                                  sourceMandaliId: mandali.mandaliId,
+                                  sourceMandaliId: normalizedMandaliId,
                                   sourceMandaliName: mandali.displayName,
                                   sourceChallengeId: mandali.activeChallengeId,
                                 ),
@@ -236,7 +243,7 @@ class MandaliDetailScreen extends StatelessWidget {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => MandaliLeaderboardScreen(
-                                mandaliId: mandali.mandaliId,
+                                mandaliId: normalizedMandaliId,
                                 title: mandali.displayName,
                               ),
                             ),
@@ -247,11 +254,21 @@ class MandaliDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  Text(
+                    'Debug members length: ${members.length}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   if (members.isEmpty)
                     const Text('No members yet.')
                   else
                     ...members.take(5).toList().asMap().entries.map(
                           (entry) => Padding(
+                        key: ValueKey(entry.value.uid),
                         padding: const EdgeInsets.only(bottom: 10),
                         child: MandaliMemberTile(
                           rank: entry.key + 1,

@@ -19,8 +19,16 @@ class BhaktaMandaliService {
   CollectionReference<Map<String, dynamic>> _mandalis() =>
       _firestore.collection('bhaktaMandalis');
 
+  String _normalizeRequiredId(String value, String fieldName) {
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      throw Exception('$fieldName cannot be empty');
+    }
+    return normalized;
+  }
+
   DocumentReference<Map<String, dynamic>> _mandaliRef(String mandaliId) =>
-      _mandalis().doc(mandaliId);
+      _mandalis().doc(_normalizeRequiredId(mandaliId, 'mandaliId'));
 
   CollectionReference<Map<String, dynamic>> _membersRef(String mandaliId) =>
       _mandaliRef(mandaliId).collection('members');
@@ -77,8 +85,16 @@ class BhaktaMandaliService {
         .where('isPublic', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      final items =
-      snapshot.docs.map((doc) => BhaktaMandali.fromMap(doc.data())).toList();
+      final items = snapshot.docs
+          .map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        final storedMandaliId = (data['mandaliId'] ?? '').toString().trim();
+        if (storedMandaliId.isEmpty) {
+          data['mandaliId'] = doc.id;
+        }
+        return BhaktaMandali.fromMap(data);
+      })
+          .toList();
 
       items.sort((a, b) {
         final byCount = b.totalCount.compareTo(a.totalCount);
@@ -107,21 +123,47 @@ class BhaktaMandaliService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-          .map((doc) => BhaktaMandali.fromMap(doc.data()))
+          .map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        final storedMandaliId =
+        (data['mandaliId'] ?? '').toString().trim();
+        if (storedMandaliId.isEmpty) {
+          data['mandaliId'] = doc.id;
+        }
+        return BhaktaMandali.fromMap(data);
+      })
           .toList(),
     );
   }
 
   Stream<BhaktaMandali?> watchMandali(String mandaliId) {
-    return _mandaliRef(mandaliId).snapshots().map((doc) {
+    final normalizedMandaliId = mandaliId.trim();
+    if (normalizedMandaliId.isEmpty) {
+      return Stream.value(null);
+    }
+
+    return _mandaliRef(normalizedMandaliId).snapshots().map((doc) {
       final data = doc.data();
       if (data == null) return null;
-      return BhaktaMandali.fromMap(data);
+
+      final normalizedData = Map<String, dynamic>.from(data);
+      final storedMandaliId =
+      (normalizedData['mandaliId'] ?? '').toString().trim();
+      if (storedMandaliId.isEmpty) {
+        normalizedData['mandaliId'] = doc.id;
+      }
+
+      return BhaktaMandali.fromMap(normalizedData);
     });
   }
 
   Stream<List<BhaktaMandaliMember>> watchLeaderboard(String mandaliId) {
-    return _membersRef(mandaliId)
+    final normalizedMandaliId = mandaliId.trim();
+    if (normalizedMandaliId.isEmpty) {
+      return Stream.value(const <BhaktaMandaliMember>[]);
+    }
+
+    return _membersRef(normalizedMandaliId)
         .orderBy('contributionCount', descending: true)
         .snapshots()
         .map(
@@ -139,14 +181,21 @@ class BhaktaMandaliService {
     final inviteData = inviteSnap.data();
     if (inviteData == null) return null;
 
-    final mandaliId = (inviteData['mandaliId'] ?? '').toString();
+    final mandaliId = (inviteData['mandaliId'] ?? '').toString().trim();
     if (mandaliId.isEmpty) return null;
 
     final mandaliSnap = await _mandaliRef(mandaliId).get();
     final mandaliData = mandaliSnap.data();
     if (mandaliData == null) return null;
 
-    return BhaktaMandali.fromMap(mandaliData);
+    final normalizedData = Map<String, dynamic>.from(mandaliData);
+    final storedMandaliId =
+    (normalizedData['mandaliId'] ?? '').toString().trim();
+    if (storedMandaliId.isEmpty) {
+      normalizedData['mandaliId'] = mandaliSnap.id;
+    }
+
+    return BhaktaMandali.fromMap(normalizedData);
   }
 
   Future<String> createMandali({
@@ -284,6 +333,8 @@ class BhaktaMandaliService {
   }
 
   Future<void> joinMandaliById({required String mandaliId}) async {
+    final normalizedMandaliId = _normalizeRequiredId(mandaliId, 'mandaliId');
+
     final user = AuthService.instance.currentUser;
     if (user == null) {
       throw Exception('No authenticated user');
@@ -292,18 +343,25 @@ class BhaktaMandaliService {
     final nowIso = DateTime.now().toIso8601String();
 
     await _firestore.runTransaction((tx) async {
-      final mandaliSnap = await tx.get(_mandaliRef(mandaliId));
+      final mandaliSnap = await tx.get(_mandaliRef(normalizedMandaliId));
       final mandaliData = mandaliSnap.data();
       if (mandaliData == null) {
         throw Exception('Mandali not found');
       }
 
-      final memberRef = _membersRef(mandaliId).doc(user.uid);
+      final normalizedMandaliData = Map<String, dynamic>.from(mandaliData);
+      final storedMandaliId =
+      (normalizedMandaliData['mandaliId'] ?? '').toString().trim();
+      if (storedMandaliId.isEmpty) {
+        normalizedMandaliData['mandaliId'] = mandaliSnap.id;
+      }
+
+      final memberRef = _membersRef(normalizedMandaliId).doc(user.uid);
       final memberSnap = await tx.get(memberRef);
-      final userMirrorRef = _userMandalisRef(user.uid).doc(mandaliId);
+      final userMirrorRef = _userMandalisRef(user.uid).doc(normalizedMandaliId);
       final userMirrorSnap = await tx.get(userMirrorRef);
 
-      final mandali = BhaktaMandali.fromMap(mandaliData);
+      final mandali = BhaktaMandali.fromMap(normalizedMandaliData);
 
       if (memberSnap.exists || userMirrorSnap.exists) {
         final existingMemberData = memberSnap.data() ?? <String, dynamic>{};
@@ -333,7 +391,9 @@ class BhaktaMandaliService {
         tx.set(
           userMirrorRef,
           {
-            'mandaliId': mandali.mandaliId,
+            'mandaliId': mandali.mandaliId.isNotEmpty
+                ? mandali.mandaliId
+                : normalizedMandaliId,
             'displayName': mandali.displayName,
             'category': mandali.category,
             'description': mandali.description,
@@ -377,7 +437,9 @@ class BhaktaMandaliService {
       tx.set(
         userMirrorRef,
         {
-          'mandaliId': mandali.mandaliId,
+          'mandaliId': mandali.mandaliId.isNotEmpty
+              ? mandali.mandaliId
+              : normalizedMandaliId,
           'displayName': mandali.displayName,
           'category': mandali.category,
           'description': mandali.description,
@@ -393,7 +455,7 @@ class BhaktaMandaliService {
         },
       );
 
-      tx.update(_mandaliRef(mandaliId), {
+      tx.update(_mandaliRef(normalizedMandaliId), {
         'memberCount': FieldValue.increment(1),
         'updatedAt': nowIso,
       });
@@ -401,6 +463,8 @@ class BhaktaMandaliService {
   }
 
   Future<void> leaveMandali({required String mandaliId}) async {
+    final normalizedMandaliId = _normalizeRequiredId(mandaliId, 'mandaliId');
+
     final user = AuthService.instance.currentUser;
     if (user == null) {
       throw Exception('No authenticated user');
@@ -409,8 +473,8 @@ class BhaktaMandaliService {
     final nowIso = DateTime.now().toIso8601String();
 
     await _firestore.runTransaction((tx) async {
-      final memberRef = _membersRef(mandaliId).doc(user.uid);
-      final mirrorRef = _userMandalisRef(user.uid).doc(mandaliId);
+      final memberRef = _membersRef(normalizedMandaliId).doc(user.uid);
+      final mirrorRef = _userMandalisRef(user.uid).doc(normalizedMandaliId);
       final summaryRef = _summaryRef(user.uid);
 
       final memberSnap = await tx.get(memberRef);
@@ -433,14 +497,14 @@ class BhaktaMandaliService {
         {'status': 'left', 'updatedAt': nowIso},
         SetOptions(merge: true),
       );
-      tx.update(_mandaliRef(mandaliId), {
+      tx.update(_mandaliRef(normalizedMandaliId), {
         'memberCount': FieldValue.increment(-1),
         'updatedAt': nowIso,
       });
 
       final activeMandaliId =
-      (summarySnap.data()?['activeMandaliId'] ?? '').toString();
-      if (activeMandaliId == mandaliId) {
+      (summarySnap.data()?['activeMandaliId'] ?? '').toString().trim();
+      if (activeMandaliId == normalizedMandaliId) {
         tx.set(
           summaryRef,
           {
@@ -461,6 +525,7 @@ class BhaktaMandaliService {
     required String mandaliName,
     required String challengeId,
   }) async {
+    final normalizedMandaliId = _normalizeRequiredId(mandaliId, 'mandaliId');
     final nowIso = DateTime.now().toIso8601String();
     final allMyMandalis = await _userMandalisRef(uid).get();
 
@@ -470,7 +535,7 @@ class BhaktaMandaliService {
       batch.set(
         doc.reference,
         {
-          'isSelectedActiveMandali': doc.id == mandaliId,
+          'isSelectedActiveMandali': doc.id == normalizedMandaliId,
           'updatedAt': nowIso,
         },
         SetOptions(merge: true),
@@ -481,7 +546,7 @@ class BhaktaMandaliService {
       _summaryRef(uid),
       {
         'uid': uid,
-        'activeMandaliId': mandaliId,
+        'activeMandaliId': normalizedMandaliId,
         'activeMandaliName': mandaliName,
         'activeMandaliChallengeId': challengeId,
         'updatedAt': nowIso,

@@ -19,9 +19,13 @@ class MandaliMemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = _initials(member.displayName);
+    final displayName =
+    member.displayName.trim().isEmpty ? 'Devotee' : member.displayName;
+
+    final initials = _initials(displayName);
 
     return Container(
+      key: ValueKey(member.uid), // ✅ FIX: ensures Flutter does not skip/reuse wrongly
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -56,7 +60,7 @@ class MandaliMemberTile extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              member.displayName,
+              displayName,
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -68,7 +72,7 @@ class MandaliMemberTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                member.contributionCount.toString(),
+                (member.contributionCount).toString(), // ✅ always show (even 0)
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -90,9 +94,13 @@ class MandaliMemberTile extends StatelessWidget {
   }
 
   String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final parts =
+    name.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
     if (parts.isEmpty) return 'D';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'
+        .toUpperCase();
   }
 }

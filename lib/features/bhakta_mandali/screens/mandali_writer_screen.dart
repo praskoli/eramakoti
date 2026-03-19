@@ -59,10 +59,13 @@ class _MandaliWriterScreenState extends State<MandaliWriterScreen> {
       duration: const Duration(milliseconds: 1800),
     );
 
+    final normalizedMandaliId = widget.mandaliId.trim();
     final user = AuthService.instance.currentUser;
 
     _mandaliStream =
-        BhaktaMandaliService.instance.watchMandali(widget.mandaliId);
+    normalizedMandaliId.isEmpty
+        ? Stream<BhaktaMandali?>.value(null)
+        : BhaktaMandaliService.instance.watchMandali(normalizedMandaliId);
 
     if (user != null) {
       _writerStateStream = MandaliWriterService.instance.watchWriterState(
@@ -415,6 +418,13 @@ class _MandaliWriterScreenState extends State<MandaliWriterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedMandaliId = widget.mandaliId.trim();
+    if (normalizedMandaliId.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Invalid Mandali reference')),
+      );
+    }
+
     final user = AuthService.instance.currentUser;
     if (user == null) {
       return const Scaffold(
@@ -790,7 +800,7 @@ class _MandaliWriterScreenState extends State<MandaliWriterScreen> {
                       MaterialPageRoute(
                         builder: (_) => SupportRamakotiScreen(
                           source: 'mandali_writer_offer_support',
-                          sourceMandaliId: widget.mandaliId,
+                          sourceMandaliId: normalizedMandaliId,
                           sourceMandaliName: state?.mandaliName,
                           sourceChallengeId: state?.challengeId,
                         ),

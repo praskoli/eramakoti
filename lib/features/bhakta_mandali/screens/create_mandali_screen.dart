@@ -26,10 +26,11 @@ class _CreateMandaliScreenState extends State<CreateMandaliScreen> {
 
   static const List<_ChallengeTargetOption> _challengeTargets =
   <_ChallengeTargetOption>[
-    _ChallengeTargetOption(label: '10 Ten', value: 10),
-    _ChallengeTargetOption(label: '1 Lakh', value: 100000),
+    _ChallengeTargetOption(label: '1001 (Deep Japa)', value: 1001),
+    _ChallengeTargetOption(label: '10001 (Sadhana Japa)', value: 10001),
+    _ChallengeTargetOption(label: '1 Lakh (Maha Japa)', value: 100000),
     _ChallengeTargetOption(label: '10 Lakh', value: 1000000),
-    _ChallengeTargetOption(label: '1 Crore', value: 10000000),
+    _ChallengeTargetOption(label: '1 Crore (Ramakoti Sankalp)', value: 10000000),
   ];
 
   final _formKey = GlobalKey<FormState>();

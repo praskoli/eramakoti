@@ -27,10 +27,13 @@ class _SelectLanguageTargetScreenState
   ];
 
   final List<_TargetOption> _targets = const [
-    _TargetOption(label: '108 Ten', value: 108),
-    _TargetOption(label: '1 Lakh', value: 100000),
-    _TargetOption(label: '10 Lakh', value: 1000000),
-    _TargetOption(label: '1 Crore', value: 10000000),
+    _TargetOption(label: '11 (Starter Japa)', value: 11),
+    _TargetOption(label: '108 (1 Mala Japa)', value: 108),
+    _TargetOption(label: '501 (Sankalp Japa)', value: 501),
+    _TargetOption(label: '1001 (Deep Japa)', value: 1001),
+    _TargetOption(label: '10001 (Sadhana Japa)', value: 10001),
+    _TargetOption(label: '1 Lakh (Maha Japa)', value: 100000),
+    _TargetOption(label: '1 Crore (Ramakoti Sankalp)', value: 10000000),
   ];
 
   String _selectedLanguage = 'English';

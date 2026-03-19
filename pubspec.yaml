@@ -2,7 +2,7 @@ name: eramakoti
 description: "eRamakoti - Digital Sri Rama Nama Writing"
 publish_to: 'none'
 
-version: 40.0.0+44
+version: 40.0.0+48
 environment:
   sdk: ^3.11.1
 

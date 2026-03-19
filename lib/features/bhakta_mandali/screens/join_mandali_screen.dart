@@ -72,7 +72,15 @@ class _JoinMandaliScreenState extends State<JoinMandaliScreen> {
     setState(() => _loading = true);
 
     try {
-      await BhaktaMandaliService.instance.joinMandaliById(mandaliId: mandali.mandaliId);
+      final mandaliId = mandali.mandaliId.trim();
+      if (mandaliId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid Mandali. Please try again.')),
+        );
+        return;
+      }
+
+      await BhaktaMandaliService.instance.joinMandaliById(mandaliId: mandaliId);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +89,7 @@ class _JoinMandaliScreenState extends State<JoinMandaliScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => MandaliDetailScreen(mandaliId: mandali.mandaliId),
+          builder: (_) => MandaliDetailScreen(mandaliId: mandaliId),
         ),
       );
     } catch (e) {
@@ -115,6 +123,13 @@ class _JoinMandaliScreenState extends State<JoinMandaliScreen> {
             controller: _codeController,
             textCapitalization: TextCapitalization.characters,
             maxLength: 8,
+            onChanged: (_) {
+              if (_preview != null) {
+                setState(() {
+                  _preview = null;
+                });
+              }
+            },
             decoration: InputDecoration(
               labelText: 'Invite Code',
               hintText: 'Enter 8-character code',

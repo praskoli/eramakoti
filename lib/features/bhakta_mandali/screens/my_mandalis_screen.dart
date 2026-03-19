@@ -209,44 +209,64 @@ class MyMandalisScreen extends StatelessWidget {
     required String selectedMandaliId,
   }) async {
     final firestore = FirebaseFirestore.instance;
+    final normalizedSelectedMandaliId = selectedMandaliId.trim();
 
     final futures = memberships.map((membership) async {
-      final mandaliId = membership.mandaliId.trim();
-      if (mandaliId.isEmpty) return null;
+      try {
+        final mandaliId = membership.mandaliId.trim();
+        if (mandaliId.isEmpty) return null;
 
-      final doc =
-      await firestore.collection('bhaktaMandalis').doc(mandaliId).get();
+        final doc =
+        await firestore.collection('bhaktaMandalis').doc(mandaliId).get();
 
-      if (!doc.exists) return null;
+        if (!doc.exists) return null;
 
-      final data = doc.data() ?? <String, dynamic>{};
-      final activeChallenge = _asMap(data['activeChallenge']);
-      final challengeStatus =
-      (activeChallenge['status'] ?? '').toString().trim().toLowerCase();
+        final data = doc.data();
+        if (data == null) return null;
 
-      final normalizedStatus =
-      challengeStatus.isEmpty ? 'active' : challengeStatus;
-      final isCompleted = normalizedStatus == 'completed';
-      final isActiveChallenge = normalizedStatus == 'active';
-      final isSelected = !isCompleted && selectedMandaliId == mandaliId;
+        final normalizedData = Map<String, dynamic>.from(data);
+        final storedMandaliId =
+        (normalizedData['mandaliId'] ?? '').toString().trim();
+        if (storedMandaliId.isEmpty) {
+          normalizedData['mandaliId'] = doc.id;
+        }
 
-      return _MandaliCardData(
-        mandaliId: mandaliId,
-        displayName:
-        (data['displayName'] ?? data['name'] ?? 'Bhakta Mandali')
-            .toString(),
-        description: (data['description'] ?? '').toString(),
-        memberCount: _asInt(data['memberCount']),
-        totalCount: _asInt(data['totalCount']),
-        activeChallengeId: (data['activeChallengeId'] ?? '').toString(),
-        challengeTitle:
-        (activeChallenge['title'] ?? activeChallenge['challengeName'] ?? '')
-            .toString(),
-        challengeStatus: normalizedStatus,
-        isSelected: isSelected,
-        isCompleted: isCompleted,
-        isActiveChallenge: isActiveChallenge,
-      );
+        final activeChallenge = _asMap(normalizedData['activeChallenge']);
+        final challengeStatus =
+        (activeChallenge['status'] ?? '').toString().trim().toLowerCase();
+
+        final normalizedStatus =
+        challengeStatus.isEmpty ? 'active' : challengeStatus;
+        final isCompleted = normalizedStatus == 'completed';
+        final isActiveChallenge = normalizedStatus == 'active';
+        final isSelected =
+            !isCompleted && normalizedSelectedMandaliId == mandaliId;
+
+        return _MandaliCardData(
+          mandaliId: mandaliId,
+          displayName:
+          (normalizedData['displayName'] ??
+              normalizedData['name'] ??
+              membership.displayName)
+              .toString(),
+          description: (normalizedData['description'] ?? '').toString(),
+          memberCount: _asInt(normalizedData['memberCount']),
+          totalCount: _asInt(normalizedData['totalCount']),
+          activeChallengeId:
+          (normalizedData['activeChallengeId'] ?? '').toString(),
+          challengeTitle:
+          (activeChallenge['title'] ??
+              activeChallenge['challengeName'] ??
+              '')
+              .toString(),
+          challengeStatus: normalizedStatus,
+          isSelected: isSelected,
+          isCompleted: isCompleted,
+          isActiveChallenge: isActiveChallenge,
+        );
+      } catch (_) {
+        return null;
+      }
     }).toList();
 
     final items =
