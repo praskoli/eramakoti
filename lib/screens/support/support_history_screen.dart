@@ -11,7 +11,6 @@ class SupportHistoryScreen extends StatelessWidget {
   static const Color _cardColor = Colors.white;
   static const Color _textPrimary = Color(0xFF2F2A25);
   static const Color _textSecondary = Color(0xFF7C7167);
-  static const Color _accent = Color(0xFFFF9E2C);
   static const Color _softBorder = Color(0xFFEADFD2);
 
   @override
@@ -81,13 +80,17 @@ class _DonationHistoryCard extends StatelessWidget {
   static const Color _pendingText = Color(0xFFE8881A);
   static const Color _verifiedBg = Color(0xFFEAF8EE);
   static const Color _verifiedText = Color(0xFF2F8F4E);
-  static const Color _rejectedBg = Color(0xFFFFECE8);
-  static const Color _rejectedText = Color(0xFFC94A34);
+  static const Color _failedBg = Color(0xFFFFECE8);
+  static const Color _failedText = Color(0xFFC94A34);
   static const Color _neutralBg = Color(0xFFEAF2FF);
   static const Color _neutralText = Color(0xFF2D5BBA);
+  static const Color _cancelledBg = Color(0xFFF3F4F6);
+  static const Color _cancelledText = Color(0xFF6B7280);
+  static const Color _refundedBg = Color(0xFFF5EEFF);
+  static const Color _refundedText = Color(0xFF7C3AED);
 
   String _formatAmount(dynamic value) {
-    if (value == null) return 'Open UPI';
+    if (value == null) return '₹0';
     if (value is int) return '₹$value';
     if (value is double) return '₹${value.toInt()}';
     return '₹$value';
@@ -109,36 +112,92 @@ class _DonationHistoryCard extends StatelessWidget {
   ({String label, Color bg, Color text}) _statusStyle(String rawStatus) {
     switch (rawStatus) {
       case 'verified':
-        return (label: 'Verified', bg: _verifiedBg, text: _verifiedText);
-      case 'rejected':
-        return (label: 'Rejected', bg: _rejectedBg, text: _rejectedText);
-      case 'returned_from_upi':
-        return (
-        label: 'Awaiting Review',
-        bg: _pendingBg,
-        text: _pendingText,
-        );
+        return (label: 'Paid', bg: _verifiedBg, text: _verifiedText);
+      case 'created':
+        return (label: 'Created', bg: _pendingBg, text: _pendingText);
       case 'initiated':
         return (label: 'Initiated', bg: _neutralBg, text: _neutralText);
+      case 'pending':
+        return (label: 'Pending', bg: _pendingBg, text: _pendingText);
+      case 'verification_failed':
+        return (
+        label: 'Verification Failed',
+        bg: _failedBg,
+        text: _failedText,
+        );
+      case 'failed':
+        return (label: 'Failed', bg: _failedBg, text: _failedText);
+      case 'cancelled':
+        return (label: 'Cancelled', bg: _cancelledBg, text: _cancelledText);
+      case 'returned':
+        return (label: 'Returned', bg: _cancelledBg, text: _cancelledText);
+      case 'refunded':
+        return (label: 'Refunded', bg: _refundedBg, text: _refundedText);
       default:
         return (
-        label: rawStatus.isEmpty ? 'Unknown' : rawStatus,
+        label: rawStatus.isEmpty ? 'Unknown' : _humanize(rawStatus),
         bg: _neutralBg,
         text: _neutralText,
         );
     }
   }
 
+  String _humanize(String value) {
+    return value
+        .split('_')
+        .where((e) => e.trim().isNotEmpty)
+        .map(
+          (word) =>
+      word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase(),
+    )
+        .join(' ');
+  }
+
+  String _buildTitle({
+    required String note,
+    required String supportType,
+    required String sourceMandaliName,
+  }) {
+    if (note.isNotEmpty) return note;
+    if (supportType == 'mandali') {
+      if (sourceMandaliName.isNotEmpty) {
+        return 'Mandali support • $sourceMandaliName';
+      }
+      return 'Mandali support';
+    }
+    return 'Support eRamakoti';
+  }
+
   @override
   Widget build(BuildContext context) {
     final amount = _formatAmount(data['amount']);
-    final status = _statusStyle((data['status'] ?? '').toString().trim());
+    final rawStatus = (data['status'] ?? '').toString().trim();
+    final status = _statusStyle(rawStatus);
     final createdAt = _formatDate(data['createdAt']);
     final updatedAt = _formatDate(data['updatedAt']);
+    final verifiedAt = _formatDate(data['verifiedAt']);
+    final paidAt = _formatDate(data['paidAt']);
+
     final donationId = (data['donationId'] ?? '').toString().trim();
     final note = (data['note'] ?? '').toString().trim();
     final source = (data['source'] ?? '').toString().trim();
     final adminNote = (data['adminNote'] ?? '').toString().trim();
+    final supportType = (data['supportType'] ?? '').toString().trim();
+    final sourceMandaliName =
+    (data['sourceMandaliName'] ?? '').toString().trim();
+
+    final paymentProvider = (data['paymentProvider'] ?? '').toString().trim();
+    final paymentMode = (data['paymentMode'] ?? '').toString().trim();
+    final razorpayOrderId = (data['razorpayOrderId'] ?? '').toString().trim();
+    final razorpayPaymentId =
+    (data['razorpayPaymentId'] ?? '').toString().trim();
+    final failureReason = (data['failureReason'] ?? '').toString().trim();
+
+    final title = _buildTitle(
+      note: note,
+      supportType: supportType,
+      sourceMandaliName: sourceMandaliName,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -173,6 +232,25 @@ class _DonationHistoryCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (supportType == 'mandali')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAF2FF),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'Mandali',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2D5BBA),
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 14),
@@ -186,21 +264,65 @@ class _DonationHistoryCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              note.isEmpty ? 'Support eRamakoti' : note,
+              title,
               style: const TextStyle(
                 fontSize: 14,
                 color: SupportHistoryScreen._textSecondary,
               ),
             ),
             const SizedBox(height: 16),
-            _InfoRow(label: 'Offering ID', value: donationId.isEmpty ? '—' : donationId),
+            _InfoRow(
+              label: 'Offering ID',
+              value: donationId.isEmpty ? '—' : donationId,
+            ),
             const SizedBox(height: 10),
             _InfoRow(label: 'Created', value: createdAt),
             const SizedBox(height: 10),
             _InfoRow(label: 'Last Updated', value: updatedAt),
+            if (paidAt != '—') ...[
+              const SizedBox(height: 10),
+              _InfoRow(label: 'Paid At', value: paidAt),
+            ],
+            if (verifiedAt != '—') ...[
+              const SizedBox(height: 10),
+              _InfoRow(label: 'Verified At', value: verifiedAt),
+            ],
+            if (paymentProvider.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(
+                label: 'Provider',
+                value: _humanize(paymentProvider),
+              ),
+            ],
+            if (paymentMode.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(
+                label: 'Mode',
+                value: _humanize(paymentMode),
+              ),
+            ],
+            if (razorpayOrderId.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(label: 'Order ID', value: razorpayOrderId),
+            ],
+            if (razorpayPaymentId.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(label: 'Payment ID', value: razorpayPaymentId),
+            ],
             if (source.isNotEmpty) ...[
               const SizedBox(height: 10),
               _InfoRow(label: 'Source', value: source),
+            ],
+            if (sourceMandaliName.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(label: 'Mandali', value: sourceMandaliName),
+            ],
+            if (failureReason.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _InfoRow(
+                label: 'Failure Reason',
+                value: _humanize(failureReason),
+              ),
             ],
             if (adminNote.isNotEmpty) ...[
               const SizedBox(height: 10),

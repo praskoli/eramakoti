@@ -1,12 +1,14 @@
+import 'dart:math';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../services/firebase/donation_service.dart';
 import '../../services/firebase/ramakoti_service.dart';
-import '../../services/payments/upi_payment_service.dart';
+import '../../services/payments/razorpay_payment_service.dart';
 
 class SupportRamakotiScreen extends StatefulWidget {
   const SupportRamakotiScreen({
@@ -26,7 +28,8 @@ class SupportRamakotiScreen extends StatefulWidget {
   State<SupportRamakotiScreen> createState() => _SupportRamakotiScreenState();
 }
 
-class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
+class _SupportRamakotiScreenState extends State<SupportRamakotiScreen>
+    with TickerProviderStateMixin {
   static const Color _accent = Color(0xFFFF9E2C);
   static const Color _bg = Color(0xFFF8F2E8);
   static const Color _card = Colors.white;
@@ -39,7 +42,20 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
   static const Color _softBlue = Color(0xFFEAF2FF);
   static const Color _blueText = Color(0xFF2563EB);
 
-  final List<int> _offerings = [11, 21, 51, 101, 501, 1001];
+  final List<int> _offerings = const [11, 21, 51, 101, 501, 1001, 5001, 10001];
+
+  final List<String> _blessingMessages = const [
+    'May Shri Ram bless you and your family with peace and prosperity 🙏',
+    'Your offering strengthens this sacred journey of devotion.',
+    'May Lord Rama guide and protect you always.',
+    'Your seva adds light to this spiritual mission.',
+    'May your home be filled with devotion, grace, and joy.',
+    'Jai Shri Ram 🙏 Your support helps Ram Naam continue.',
+    'May Sri Ram bless your family with strength and harmony.',
+    'Your devotion will return as blessings in your life.',
+    'With gratitude and prayer, we thank you for your offering.',
+    'May this sacred offering bring peace to your heart and home.',
+  ];
 
   int? _selectedAmount;
   final TextEditingController _customController = TextEditingController();
@@ -49,6 +65,22 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
   bool _loading = false;
   bool _anonymous = false;
   bool _showAdvanced = false;
+
+  bool _showSuccessPopup = false;
+  bool _showPreparingPaymentOverlay = false;
+
+  int _lastSuccessAmount = 0;
+  String _lastSuccessName = 'Devotee';
+  String _lastSuccessMessage = '';
+
+  late final AudioPlayer _audioPlayer;
+  late final AnimationController _popupController;
+  late final AnimationController _flowerController;
+  late final Animation<double> _popupFade;
+  late final Animation<Offset> _popupSlide;
+
+  late final List<_FlowerParticle> _flowers;
+  int _messageRotationIndex = 0;
 
   bool get _isMandaliSupport =>
       (widget.sourceMandaliId ?? '').trim().isNotEmpty;
@@ -68,12 +100,51 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     return int.tryParse(raw);
   }
 
-  String _buildUpiUrl({required int amount}) {
-    return UpiPaymentService.instance.buildUpiUrl(
-      amount: amount,
-      transactionNote:
-      _isMandaliSupport ? 'Mandali Support eRamakoti' : 'Support eRamakoti',
+  @override
+  void initState() {
+    super.initState();
+    RazorpayPaymentService.instance.initialize();
+
+    _audioPlayer = AudioPlayer();
+    _popupController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
     );
+    _flowerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    );
+
+    _popupFade = CurvedAnimation(
+      parent: _popupController,
+      curve: Curves.easeOutCubic,
+    );
+
+    _popupSlide = Tween<Offset>(
+      begin: const Offset(0, -0.14),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _popupController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+
+    _flowers = List.generate(
+      18,
+          (index) => _FlowerParticle.random(index),
+    );
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    _nameController.dispose();
+    _messageController.dispose();
+    _audioPlayer.dispose();
+    _popupController.dispose();
+    _flowerController.dispose();
+    super.dispose();
   }
 
   String _formatDate(dynamic value) {
@@ -83,6 +154,7 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     if (date == null) return '—';
     return DateFormat('dd MMM yyyy, hh:mm a').format(date);
   }
+
   String _formatIndianNumber(int value) {
     final number = value.toString();
     if (number.length <= 3) return number;
@@ -102,33 +174,126 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
 
     return '${parts.join(',')},$last3';
   }
-  Future<void> _copyText(String label, String value) async {
-    await Clipboard.setData(ClipboardData(text: value));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label copied')),
-    );
-  }
 
   String _friendlyError(Object e) {
     final text = e.toString().toLowerCase();
 
     if (text.contains('permission-denied')) {
-      return 'Permission denied while saving support details';
+      return 'Permission denied while processing support payment.';
     }
     if (text.contains('network')) {
-      return 'Network issue. Please check your internet and try again';
+      return 'Network issue. Please check your internet and try again.';
     }
     if (text.contains('unavailable')) {
-      return 'Service temporarily unavailable. Please try again';
+      return 'Payment service is temporarily unavailable. Please try again.';
     }
     return e.toString();
   }
 
-  Future<void> _recordSupportEntry(
-      int amount, {
-        required String source,
-      }) async {
+  String _resolveDisplayName({
+    required RazorpayPaymentResult result,
+  }) {
+    if (result.anonymous) return 'A Devotee';
+
+    final enteredName = (result.supporterName ?? '').trim();
+    if (enteredName.isNotEmpty) return enteredName;
+
+    final localName = _nameController.text.trim();
+    if (localName.isNotEmpty) return localName;
+
+    final firebaseName = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    if (firebaseName != null && firebaseName.isNotEmpty) {
+      return firebaseName;
+    }
+
+    final email = FirebaseAuth.instance.currentUser?.email?.trim();
+    if (email != null && email.isNotEmpty && email.contains('@')) {
+      final prefix = email.split('@').first.trim();
+      if (prefix.isNotEmpty) {
+        return prefix;
+      }
+    }
+
+    return 'Devotee';
+  }
+
+  String _nextBlessingMessage(String customMessage) {
+    if (customMessage.trim().isNotEmpty) {
+      return customMessage.trim();
+    }
+    final message =
+    _blessingMessages[_messageRotationIndex % _blessingMessages.length];
+    _messageRotationIndex++;
+    return message;
+  }
+
+  Future<void> _playSuccessSound() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(
+        AssetSource('audio/jai_shri_ram.mp3'),
+        volume: 1.0,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _showCelebrationPopup(
+      RazorpayPaymentResult result,
+      int amount,
+      ) async {
+    final resolvedAmount = result.requestedAmount ?? amount;
+    final resolvedName = _resolveDisplayName(result: result);
+    final resolvedMessage = _nextBlessingMessage(result.supporterMessage ?? '');
+
+    setState(() {
+      _lastSuccessAmount = resolvedAmount;
+      _lastSuccessName = resolvedName;
+      _lastSuccessMessage = resolvedMessage;
+      _showSuccessPopup = true;
+    });
+
+    _flowers
+      ..clear()
+      ..addAll(
+        List.generate(
+          18,
+              (index) => _FlowerParticle.random(index),
+        ),
+      );
+
+    await Future.wait([
+      _popupController.forward(from: 0),
+      _flowerController.forward(from: 0),
+      _playSuccessSound(),
+    ]);
+  }
+
+  Future<void> _closeSuccessPopup() async {
+    await _popupController.reverse();
+    if (!mounted) return;
+    setState(() {
+      _showSuccessPopup = false;
+    });
+  }
+
+  Future<void> _continueAfterSuccess() async {
+    await _popupController.reverse();
+    if (!mounted) return;
+
+    setState(() {
+      _showSuccessPopup = false;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop(true);
+      }
+    });
+  }
+
+  Future<void> _startSupportPayment(int amount) async {
     final messenger = ScaffoldMessenger.of(context);
 
     if (_loading) return;
@@ -142,83 +307,72 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
 
     setState(() {
       _loading = true;
+      _showPreparingPaymentOverlay = true;
+      _selectedAmount = amount;
     });
 
     try {
-      await DonationService.instance.createDonation(
-        amount: amount,
-        source: source.trim().isEmpty ? _resolvedSource : source.trim(),
-        note: _isMandaliSupport
-            ? 'Mandali support offering'
-            : 'Support eRamakoti',
-        anonymous: _anonymous,
-        supporterName: _nameController.text.trim(),
-        supporterMessage: _messageController.text.trim(),
-        supportType: _supportType,
-        sourceMandaliId: widget.sourceMandaliId,
-        sourceMandaliName: widget.sourceMandaliName,
-        sourceChallengeId: widget.sourceChallengeId,
+      final result = await RazorpayPaymentService.instance.startPayment(
+        request: RazorpayPaymentRequest(
+          amount: amount,
+          source: _resolvedSource,
+          supportType: _supportType,
+          supporterName: _nameController.text.trim(),
+          supporterMessage: _messageController.text.trim(),
+          anonymous: _anonymous,
+          sourceMandaliId: widget.sourceMandaliId,
+          sourceMandaliName: widget.sourceMandaliName,
+          sourceChallengeId: widget.sourceChallengeId,
+        ),
       );
 
       if (!mounted) return;
-      _showRecordedDialog(amount);
+
+      switch (result.status) {
+        case RazorpayPaymentStatus.success:
+          await _showCelebrationPopup(result, amount);
+          break;
+        case RazorpayPaymentStatus.cancelled:
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(result.message ?? 'Payment cancelled.'),
+            ),
+          );
+          break;
+        case RazorpayPaymentStatus.failed:
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                result.message ?? 'Payment failed. Please try again.',
+              ),
+            ),
+          );
+          break;
+        case RazorpayPaymentStatus.externalWallet:
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                result.message ?? 'External wallet selected.',
+              ),
+            ),
+          );
+          break;
+      }
     } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Could not record support entry: ${_friendlyError(e)}'),
+          content: Text(_friendlyError(e)),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
           _loading = false;
+          _showPreparingPaymentOverlay = false;
         });
       }
     }
-  }
-
-  void _showRecordedDialog(int amount) {
-    final title = _isMandaliSupport
-        ? '🙏 Mandali Support Recorded'
-        : '🙏 Offering Recorded';
-
-    final body = _isMandaliSupport
-        ? 'Your Mandali support entry for ₹$amount has been recorded.\n\n'
-        'If you completed the payment in your UPI app, it can be reviewed later in Support History.\n\n'
-        'Jai Shri Ram.'
-        : 'Your offering entry for ₹$amount has been recorded.\n\n'
-        'If you completed the payment in your UPI app, it can be reviewed later in Support History.\n\n'
-        'Jai Shri Ram.';
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-          title: Text(title),
-          content: Text(body),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Stay Here'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Widget _sectionCard({required Widget child}) {
@@ -246,11 +400,12 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     return GestureDetector(
       onTap: _loading
           ? null
-          : () {
+          : () async {
         setState(() {
           _selectedAmount = amount;
           _customController.clear();
         });
+        await _startSupportPayment(amount);
       },
       child: Container(
         height: 58,
@@ -278,31 +433,6 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _infoRow({
-    required String label,
-    required String value,
-    required String actionText,
-    required VoidCallback onTap,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$label: $value',
-            style: const TextStyle(
-              color: _textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: onTap,
-          child: Text(actionText),
-        ),
-      ],
     );
   }
 
@@ -364,18 +494,271 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _customController.dispose();
-    _nameController.dispose();
-    _messageController.dispose();
-    super.dispose();
+  Widget _buildFlowerLayer() {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _flowerController,
+        builder: (context, _) {
+          return Stack(
+            children: _flowers.map((flower) {
+              final progress = _flowerController.value;
+              final top = (-40) + ((300 + flower.travelDistance) * progress);
+              final sway =
+                  sin((progress * pi * 2) + flower.phase) * flower.sway;
+              final rotation = (progress * 2.5) + flower.phase;
+
+              return Positioned(
+                left: flower.left + sway,
+                top: top,
+                child: Transform.rotate(
+                  angle: rotation,
+                  child: Opacity(
+                    opacity: (1 - progress * 0.35).clamp(0, 1),
+                    child: Text(
+                      flower.symbol,
+                      style: TextStyle(
+                        fontSize: flower.size,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPreparingPaymentOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: false,
+        child: Container(
+          color: Colors.black.withOpacity(0.18),
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: _accent.withOpacity(.25)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x22000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Preparing secure payment...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Jai Shri Ram 🙏',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessPopup() {
+    final title =
+    _isMandaliSupport ? '🙏 Mandali Support Successful' : '🙏 Support Successful';
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: false,
+        child: Container(
+          color: Colors.black.withOpacity(0.12),
+          child: Stack(
+            children: [
+              _buildFlowerLayer(),
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                    child: FadeTransition(
+                      opacity: _popupFade,
+                      child: SlideTransition(
+                        position: _popupSlide,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: _accent.withOpacity(.35),
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x26000000),
+                                  blurRadius: 22,
+                                  offset: Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: _softAccent,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: _accent.withOpacity(.25),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.temple_hindu_rounded,
+                                    size: 30,
+                                    color: _accent,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  title,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Thank you for offering ₹$_lastSuccessAmount, $_lastSuccessName',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: _accent,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: _softAccent,
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: Text(
+                                    _lastSuccessMessage,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: _textSecondary,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'May Sri Ram bless you and your family. Jai Shri Ram 🙏',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPrimary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: _closeSuccessPopup,
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(
+                                            color: _accent.withOpacity(.4),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 13,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                            BorderRadius.circular(14),
+                                          ),
+                                        ),
+                                        child: const Text('Stay Here'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: _continueAfterSuccess,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _accent,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 13,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                            BorderRadius.circular(14),
+                                          ),
+                                        ),
+                                        child: const Text('Continue'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedAmount = _selectedValue ?? 21;
-    final qrData = _buildUpiUrl(amount: selectedAmount);
 
     return Scaffold(
       backgroundColor: _bg,
@@ -385,557 +768,501 @@ class _SupportRamakotiScreenState extends State<SupportRamakotiScreen> {
         backgroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: StreamBuilder<int>(
-          stream: RamakotiService.instance.watchGlobalRamCount(),
-          builder: (context, globalSnapshot) {
-            final globalTotal = globalSnapshot.data ?? 0;
+        child: Stack(
+          children: [
+            StreamBuilder<int>(
+              stream: RamakotiService.instance.watchGlobalRamCount(),
+              builder: (context, globalSnapshot) {
+                final globalTotal = globalSnapshot.data ?? 0;
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: DonationService.instance.watchSupportWall(limit: 8),
-              builder: (context, wallSnapshot) {
-                final wallDocs = wallSnapshot.data?.docs ?? const [];
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: DonationService.instance.watchSupportWall(limit: 8),
+                  builder: (context, wallSnapshot) {
+                    final wallDocs = wallSnapshot.data?.docs ?? const [];
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _isMandaliSupport
-                                  ? '🪔 Support this Mandali'
-                                  : '🪔 Offer Support to eRamakoti',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: _textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              _isMandaliSupport
-                                  ? 'Your support helps this Bhakta Mandali continue devotional activities and complete its sacred challenge.'
-                                  : 'Your voluntary contribution helps maintain this devotional platform and support future spiritual initiatives.',
-                              style: const TextStyle(
-                                height: 1.45,
-                                color: _textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'This offering is completely optional and does not unlock any features in the app.',
-                              style: TextStyle(
-                                height: 1.45,
-                                color: _textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (_isMandaliSupport) ...[
-                              const SizedBox(height: 16),
-                              _supportContextCard(),
-                            ],
-                            const SizedBox(height: 16),
-                            StreamBuilder<int>(
-                              stream: RamakotiService.instance.watchGlobalDevotionCount(),
-                              builder: (context, devotionSnapshot) {
-                                final globalDevotionTotal = devotionSnapshot.data ?? globalTotal;
-
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: _softAccent,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Global Ram Count',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: _textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _formatIndianNumber(globalTotal),
-                                        style: const TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          color: _textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      const Text(
-                                        'Sri Rama Nama written inside the app only.',
-                                        style: TextStyle(
-                                          color: _textSecondary,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 14),
-                                      const Divider(height: 1),
-                                      const SizedBox(height: 14),
-                                      const Text(
-                                        'Global Devotion Count',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: _textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _formatIndianNumber(globalDevotionTotal),
-                                        style: const TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          color: _textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      const Text(
-                                        'Includes in-app writing, manual writing, japa, and additional devotional entries.',
-                                        style: TextStyle(
-                                          color: _textSecondary,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _isMandaliSupport
-                                  ? 'Choose a Mandali support amount'
-                                  : 'Choose an offering amount',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Select an amount and scan the QR in your UPI app.',
-                              style: TextStyle(
-                                color: _textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _offerings.length,
-                              gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                mainAxisSpacing: 10,
-                                crossAxisSpacing: 10,
-                                childAspectRatio: 2.2,
-                              ),
-                              itemBuilder: (_, index) {
-                                return _offeringTile(_offerings[index]);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _showAdvanced = !_showAdvanced;
-                                });
-                              },
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _isMandaliSupport
-                                          ? 'Other amount, QR & Mandali support details'
-                                          : 'Other amount, QR & optional details',
-                                      style: const TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(
-                                    _showAdvanced
-                                        ? Icons.keyboard_arrow_up_rounded
-                                        : Icons.keyboard_arrow_down_rounded,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_showAdvanced) ...[
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _customController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: _isMandaliSupport
-                                      ? 'Other Mandali support amount'
-                                      : 'Other amount',
-                                  prefixText: '₹ ',
-                                  border: const OutlineInputBorder(),
-                                ),
-                                onChanged: (_) {
-                                  setState(() {
-                                    _selectedAmount = null;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _nameController,
-                                decoration: const InputDecoration(
-                                  labelText:
-                                  'Name for support wall (optional)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: _messageController,
-                                maxLines: 3,
-                                decoration: InputDecoration(
-                                  labelText: _isMandaliSupport
-                                      ? 'Mandali support message (optional)'
-                                      : 'Message (optional)',
-                                  hintText: 'Jai Shri Ram',
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              SwitchListTile(
-                                value: _anonymous,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _anonymous = value;
-                                  });
-                                },
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text(
-                                  'Post anonymously if reviewed',
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Scan QR to pay',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _isMandaliSupport
-                                  ? 'Scan to support this Mandali with ₹$selectedAmount'
-                                  : 'Scan to pay ₹$selectedAmount',
-                              style: const TextStyle(color: _textSecondary),
-                            ),
-                            const SizedBox(height: 16),
-                            Center(
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: _border),
-                                ),
-                                child: QrImageView(
-                                  data: qrData,
-                                  version: QrVersions.auto,
-                                  size: 220,
-                                  backgroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Center(
-                              child: Text(
-                                'UPI ID: ${UpiPaymentService.upiId}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: _textPrimary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Center(
-                              child: Text(
-                                'Payee: ${UpiPaymentService.payeeName}',
-                                style: const TextStyle(
-                                  color: _textSecondary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _accent,
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: _loading
-                                    ? null
-                                    : () async {
-                                  await _recordSupportEntry(
-                                    selectedAmount,
-                                    source: _isMandaliSupport
-                                        ? 'mandali_qr_payment_confirmed'
-                                        : 'qr_payment_confirmed',
-                                  );
-                                },
-                                child: _loading
-                                    ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                                    : Text(
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _sectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
                                   _isMandaliSupport
-                                      ? 'I Have Paid Mandali Support'
-                                      : 'I Have Paid',
+                                      ? '🪔 Support this Mandali'
+                                      : '🪔 Offer Support to eRamakoti',
                                   style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: _textPrimary,
                                   ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'UPI details',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _infoRow(
-                              label: 'UPI ID',
-                              value: UpiPaymentService.upiId,
-                              actionText: 'Copy',
-                              onTap: () => _copyText(
-                                'UPI ID',
-                                UpiPaymentService.upiId,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _infoRow(
-                              label: 'Payee',
-                              value: UpiPaymentService.payeeName,
-                              actionText: 'Copy',
-                              onTap: () => _copyText(
-                                'Payee',
-                                UpiPaymentService.payeeName,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _infoRow(
-                              label: 'Amount',
-                              value: '₹$selectedAmount',
-                              actionText: 'Copy',
-                              onTap: () => _copyText(
-                                'Amount',
-                                selectedAmount.toString(),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _infoRow(
-                              label: 'Note',
-                              value: _isMandaliSupport
-                                  ? 'Mandali Support eRamakoti'
-                                  : UpiPaymentService.note,
-                              actionText: 'Copy',
-                              onTap: () => _copyText(
-                                'Note',
-                                _isMandaliSupport
-                                    ? 'Mandali Support eRamakoti'
-                                    : UpiPaymentService.note,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: _softGreen,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFD5EEDC),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              color: _greenText,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Payments are processed through your UPI app. This app does not store or process payment information.\n\nAfter payment, tap "I Have Paid" to record your support entry.',
-                                style: const TextStyle(
-                                  height: 1.4,
-                                  color: _greenText,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      _sectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Support Wall',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Support entries shown here can be reviewed later.',
-                              style: TextStyle(
-                                color: _textSecondary,
-                                height: 1.4,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            if (wallSnapshot.connectionState ==
-                                ConnectionState.waiting &&
-                                wallDocs.isEmpty)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            else if (wallDocs.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  'No support entries yet.',
-                                  style: TextStyle(color: _textSecondary),
-                                ),
-                              )
-                            else
-                              ...wallDocs.map((doc) {
-                                final data = doc.data();
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: _softAccent,
-                                    borderRadius: BorderRadius.circular(16),
+                                const SizedBox(height: 10),
+                                Text(
+                                  _isMandaliSupport
+                                      ? 'Your support helps this Bhakta Mandali continue devotional activities and complete its sacred challenge.'
+                                      : 'Your voluntary contribution helps maintain this devotional platform and support future spiritual initiatives.',
+                                  style: const TextStyle(
+                                    height: 1.45,
+                                    color: _textSecondary,
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
+                                ),
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'This offering is completely optional and does not unlock any features in the app.',
+                                  style: TextStyle(
+                                    height: 1.45,
+                                    color: _textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (_isMandaliSupport) ...[
+                                  const SizedBox(height: 16),
+                                  _supportContextCard(),
+                                ],
+                                const SizedBox(height: 16),
+                                StreamBuilder<int>(
+                                  stream: RamakotiService.instance
+                                      .watchGlobalDevotionCount(),
+                                  builder: (context, devotionSnapshot) {
+                                    final globalDevotionTotal =
+                                        devotionSnapshot.data ?? globalTotal;
+
+                                    return Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: _softAccent,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: Text(
-                                              (data['name'] ?? 'Devotee')
-                                                  .toString(),
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                color: _textPrimary,
-                                              ),
+                                          const Text(
+                                            'Global Ram Count',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: _textSecondary,
                                             ),
                                           ),
+                                          const SizedBox(height: 6),
                                           Text(
-                                            '₹${data['amount'] ?? ''}',
+                                            _formatIndianNumber(globalTotal),
                                             style: const TextStyle(
+                                              fontSize: 28,
                                               fontWeight: FontWeight.w800,
-                                              color: _accent,
+                                              color: _textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'Sri Rama Nama written inside the app only.',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 14),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 14),
+                                          const Text(
+                                            'Global Devotion Count',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: _textSecondary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _formatIndianNumber(
+                                              globalDevotionTotal,
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.w800,
+                                              color: _textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'Includes in-app writing, manual writing, japa, and additional devotional entries.',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                              height: 1.4,
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 6),
-                                      if ((data['message'] ?? '')
-                                          .toString()
-                                          .trim()
-                                          .isNotEmpty)
-                                        Text(
-                                          (data['message'] ?? '').toString(),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _sectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _isMandaliSupport
+                                      ? 'Choose a Mandali support amount'
+                                      : 'Choose an offering amount',
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _isMandaliSupport
+                                      ? 'Tap any amount to continue to secure Mandali support payment.'
+                                      : 'Tap any amount to continue to secure support payment.',
+                                  style: const TextStyle(
+                                    color: _textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics:
+                                  const NeverScrollableScrollPhysics(),
+                                  itemCount: _offerings.length,
+                                  gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 10,
+                                    childAspectRatio: 2.2,
+                                  ),
+                                  itemBuilder: (_, index) {
+                                    return _offeringTile(_offerings[index]);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _sectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _showAdvanced = !_showAdvanced;
+                                    });
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          _isMandaliSupport
+                                              ? 'Other amount & Mandali support details'
+                                              : 'Other amount & optional details',
                                           style: const TextStyle(
-                                            color: _textSecondary,
-                                            height: 1.4,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w800,
+                                            color: _textPrimary,
                                           ),
                                         ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _formatDate(data['timestamp']),
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: _textSecondary,
-                                        ),
+                                      ),
+                                      Icon(
+                                        _showAdvanced
+                                            ? Icons.keyboard_arrow_up_rounded
+                                            : Icons.keyboard_arrow_down_rounded,
                                       ),
                                     ],
                                   ),
-                                );
-                              }),
-                          ],
-                        ),
+                                ),
+                                if (_showAdvanced) ...[
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _customController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: _isMandaliSupport
+                                          ? 'Other Mandali support amount'
+                                          : 'Other amount',
+                                      prefixText: '₹ ',
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    onChanged: (_) {
+                                      setState(() {
+                                        _selectedAmount = null;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _nameController,
+                                    decoration: const InputDecoration(
+                                      labelText:
+                                      'Name for support wall (optional)',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _messageController,
+                                    maxLines: 3,
+                                    decoration: InputDecoration(
+                                      labelText: _isMandaliSupport
+                                          ? 'Mandali support message (optional)'
+                                          : 'Message (optional)',
+                                      hintText: 'Jai Shri Ram',
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SwitchListTile(
+                                    value: _anonymous,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _anonymous = value;
+                                      });
+                                    },
+                                    contentPadding: EdgeInsets.zero,
+                                    title: const Text(
+                                      'Post anonymously if reviewed',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 52,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _accent,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: _loading
+                                          ? null
+                                          : () async {
+                                        final amount = _selectedValue;
+                                        if (amount == null || amount <= 0) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Please enter a valid amount',
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        await _startSupportPayment(amount);
+                                      },
+                                      child: _loading
+                                          ? const CircularProgressIndicator(
+                                        color: Colors.white,
+                                      )
+                                          : Text(
+                                        _isMandaliSupport
+                                            ? 'Pay Mandali Support'
+                                            : 'Pay ₹$selectedAmount',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: _softGreen,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFD5EEDC),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.lock_outline_rounded,
+                                  color: _greenText,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _isMandaliSupport
+                                        ? 'Payments are processed securely through Razorpay. After successful payment, your Mandali support is recorded automatically.'
+                                        : 'Payments are processed securely through Razorpay. After successful payment, your support is recorded automatically.',
+                                    style: const TextStyle(
+                                      height: 1.4,
+                                      color: _greenText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          _sectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Support Wall',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Support entries shown here can be reviewed later.',
+                                  style: TextStyle(
+                                    color: _textSecondary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                if (wallSnapshot.connectionState ==
+                                    ConnectionState.waiting &&
+                                    wallDocs.isEmpty)
+                                  const Center(
+                                    child: Padding(
+                                      padding:
+                                      EdgeInsets.symmetric(vertical: 20),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
+                                else if (wallDocs.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Text(
+                                      'No support entries yet.',
+                                      style: TextStyle(
+                                        color: _textSecondary,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  ...wallDocs.map((doc) {
+                                    final data = doc.data();
+                                    return Container(
+                                      margin:
+                                      const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: _softAccent,
+                                        borderRadius:
+                                        BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  (data['name'] ?? 'Devotee')
+                                                      .toString(),
+                                                  style: const TextStyle(
+                                                    fontWeight:
+                                                    FontWeight.w800,
+                                                    color: _textPrimary,
+                                                  ),
+                                                ),
+                                              ),
+                                              Text(
+                                                '₹${data['amount'] ?? ''}',
+                                                style: const TextStyle(
+                                                  fontWeight:
+                                                  FontWeight.w800,
+                                                  color: _accent,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          if ((data['message'] ?? '')
+                                              .toString()
+                                              .trim()
+                                              .isNotEmpty)
+                                            Text(
+                                              (data['message'] ?? '')
+                                                  .toString(),
+                                              style: const TextStyle(
+                                                color: _textSecondary,
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _formatDate(data['timestamp']),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: _textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               },
-            );
-          },
+            ),
+            if (_showPreparingPaymentOverlay) _buildPreparingPaymentOverlay(),
+            if (_showSuccessPopup) _buildSuccessPopup(),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _FlowerParticle {
+  final double left;
+  final double size;
+  final double phase;
+  final double sway;
+  final double travelDistance;
+  final String symbol;
+
+  const _FlowerParticle({
+    required this.left,
+    required this.size,
+    required this.phase,
+    required this.sway,
+    required this.travelDistance,
+    required this.symbol,
+  });
+
+  factory _FlowerParticle.random(int seed) {
+    final random = Random(seed * 97 + 13);
+    const symbols = ['🌸', '🌺', '🌼', '🏵️'];
+
+    return _FlowerParticle(
+      left: 10 + random.nextDouble() * 320,
+      size: 18 + random.nextDouble() * 12,
+      phase: random.nextDouble() * pi,
+      sway: 10 + random.nextDouble() * 22,
+      travelDistance: 40 + random.nextDouble() * 120,
+      symbol: symbols[random.nextInt(symbols.length)],
     );
   }
 }

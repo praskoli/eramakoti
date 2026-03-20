@@ -1,10 +1,33 @@
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const crypto = require("crypto");
+const Razorpay = require("razorpay");
 
 initializeApp();
 
 const db = getFirestore();
+
+const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
+const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+
+function getRazorpayClient() {
+  return new Razorpay({
+    key_id: razorpayKeyId.value(),
+    key_secret: razorpayKeySecret.value(),
+  });
+}
+
+function cleanString(value) {
+  return String(value || "").trim();
+}
+
+function safeNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
 
 exports.mirrorDonationToAdmin = onDocumentCreated(
   "users/{uid}/donations/{donationId}",
@@ -225,5 +248,253 @@ exports.generateMandaliCertificates = onDocumentUpdated(
       },
       { merge: true }
     );
+  }
+);
+
+/**
+ * NEW: Create Razorpay order safely on backend.
+ * This does not affect your current live donation flow until the app starts calling it.
+ */
+exports.createRazorpayOrder = onCall(
+  {
+    region: "asia-south1",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
+  async (request) => {
+    console.log("createRazorpayOrder auth =", request.auth);
+    console.log("createRazorpayOrder app =", request.app);
+    console.log("createRazorpayOrder data =", request.data);
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const data = request.data || {};
+    const uid = request.auth.uid;
+
+    const amount = safeNumber(data.amount, 0);
+    if (!Number.isInteger(amount) || amount < 1) {
+      throw new HttpsError("invalid-argument", "Amount must be an integer >= 1.");
+    }
+
+    const source = cleanString(data.source) || "support_screen";
+    const supportType = cleanString(data.supportType) || "individual";
+    const supporterName = cleanString(data.supporterName);
+    const supporterMessage = cleanString(data.supporterMessage);
+    const anonymous = data.anonymous === true;
+
+    const sourceMandaliId = cleanString(data.sourceMandaliId) || null;
+    const sourceMandaliName = cleanString(data.sourceMandaliName) || null;
+    const sourceChallengeId = cleanString(data.sourceChallengeId) || null;
+
+    const donationRef = db.collection("users").doc(uid).collection("donations").doc();
+    const donationId = donationRef.id;
+    const receipt = `don_${donationId}`.slice(0, 40);
+
+    const razorpay = getRazorpayClient();
+
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount: amount * 100,
+        currency: "INR",
+        receipt,
+        notes: {
+          donationId,
+          uid,
+          source,
+          supportType,
+          sourceMandaliId: sourceMandaliId || "",
+          sourceMandaliName: sourceMandaliName || "",
+          sourceChallengeId: sourceChallengeId || "",
+        },
+      });
+    } catch (error) {
+      console.error("Razorpay order creation failed:", error);
+      throw new HttpsError("internal", "Could not create Razorpay order.");
+    }
+
+    await donationRef.set({
+      donationId,
+      uid,
+      amount,
+      currency: "INR",
+      source,
+      supportType,
+      sourceMandaliId,
+      sourceMandaliName,
+      sourceChallengeId,
+      userDisplayName: cleanString(request.auth.token.name || ""),
+      supporterName,
+      supporterMessage,
+      anonymous,
+      paymentProvider: "razorpay",
+      paymentMode: "checkout",
+      status: "created",
+      razorpayOrderId: order.id,
+      razorpayPaymentId: null,
+      razorpaySignature: null,
+      razorpayOrderStatus: order.status || "created",
+      verifiedAt: null,
+      paidAt: null,
+      failureReason: null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      donationId,
+      orderId: order.id,
+      amount: amount * 100,
+      currency: "INR",
+      razorpayKeyId: razorpayKeyId.value(),
+      name: "eRamakoti",
+      description: supportType === "mandali" ? "Mandali Support" : "Offer Support",
+      prefill: {
+        name: supporterName || cleanString(request.auth.token.name || ""),
+        email: cleanString(request.auth.token.email || ""),
+        contact: cleanString(request.auth.token.phone_number || ""),
+      },
+      notes: {
+        donationId,
+        supportType,
+        source,
+      },
+    };
+  }
+);
+
+/**
+ * NEW: Verify Razorpay payment signature on backend and finalize donation state.
+ */
+exports.verifyRazorpayPayment = onCall(
+  {
+    region: "asia-south1",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const data = request.data || {};
+    const uid = request.auth.uid;
+
+    const donationId = cleanString(data.donationId);
+    const razorpayOrderId = cleanString(data.razorpayOrderId);
+    const razorpayPaymentId = cleanString(data.razorpayPaymentId);
+    const razorpaySignature = cleanString(data.razorpaySignature);
+
+    if (!donationId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      throw new HttpsError("invalid-argument", "Missing payment verification fields.");
+    }
+
+    const donationRef = db.collection("users").doc(uid).collection("donations").doc(donationId);
+    const donationSnap = await donationRef.get();
+
+    if (!donationSnap.exists) {
+      throw new HttpsError("not-found", "Donation record not found.");
+    }
+
+    const donation = donationSnap.data() || {};
+    if (donation.uid !== uid) {
+      throw new HttpsError("permission-denied", "Donation does not belong to current user.");
+    }
+
+    if (cleanString(donation.razorpayOrderId) !== razorpayOrderId) {
+      throw new HttpsError("failed-precondition", "Order ID mismatch.");
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", razorpayKeySecret.value())
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpaySignature) {
+      await donationRef.set(
+        {
+          status: "verification_failed",
+          razorpayPaymentId,
+          razorpaySignature,
+          failureReason: "signature_mismatch",
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      throw new HttpsError("permission-denied", "Payment signature verification failed.");
+    }
+
+    await donationRef.set(
+      {
+        status: "verified",
+        razorpayPaymentId,
+        razorpaySignature,
+        verifiedAt: FieldValue.serverTimestamp(),
+        paidAt: FieldValue.serverTimestamp(),
+        failureReason: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return {
+      success: true,
+      donationId,
+      status: "verified",
+    };
+  }
+);
+
+/**
+ * NEW: Mark cancelled/failed checkout attempts without affecting current live flow.
+ * Optional but useful for history and support UX.
+ */
+exports.markRazorpayPaymentFailed = onCall(
+  {
+    region: "asia-south1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const data = request.data || {};
+    const uid = request.auth.uid;
+
+    const donationId = cleanString(data.donationId);
+    const reason = cleanString(data.reason) || "checkout_failed";
+
+    if (!donationId) {
+      throw new HttpsError("invalid-argument", "Missing donationId.");
+    }
+
+    const donationRef = db.collection("users").doc(uid).collection("donations").doc(donationId);
+    const donationSnap = await donationRef.get();
+
+    if (!donationSnap.exists) {
+      throw new HttpsError("not-found", "Donation record not found.");
+    }
+
+    const donation = donationSnap.data() || {};
+    if (donation.uid !== uid) {
+      throw new HttpsError("permission-denied", "Donation does not belong to current user.");
+    }
+
+    await donationRef.set(
+      {
+        status: "failed",
+        failureReason: reason,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return {
+      success: true,
+      donationId,
+      status: "failed",
+    };
   }
 );

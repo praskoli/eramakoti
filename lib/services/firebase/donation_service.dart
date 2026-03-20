@@ -10,66 +10,130 @@ class DonationService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _userDonations =>
-      _db
-          .collection('users')
-          .doc(_auth.currentUser!.uid)
-          .collection('donations');
+      _db.collection('users').doc(_auth.currentUser!.uid).collection('donations');
 
   CollectionReference<Map<String, dynamic>> get _supportWall =>
       _db.collection('support_wall');
 
-  Future<String> createDonation({
-    required int amount,
-    required String source,
-    required String note,
-    bool anonymous = false,
-    String supporterName = '',
-    String supporterMessage = '',
-    String supportType = 'individual',
-    String? sourceMandaliId,
-    String? sourceMandaliName,
-    String? sourceChallengeId,
-  }) async {
-    final user = _auth.currentUser!;
-    final uid = user.uid;
-    final fallbackDisplayName = (user.displayName ?? '').trim();
+  bool get isLoggedIn => _auth.currentUser != null;
 
-    final resolvedSupporterName =
-    supporterName.trim().isNotEmpty ? supporterName.trim() : fallbackDisplayName;
+  String get currentUid {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('User not logged in');
+    }
+    return user.uid;
+  }
 
-    final doc = _userDonations.doc();
+  DocumentReference<Map<String, dynamic>> donationRef(String donationId) {
+    if (donationId.trim().isEmpty) {
+      throw ArgumentError('donationId cannot be empty');
+    }
+    return _userDonations.doc(donationId.trim());
+  }
 
-    await doc.set({
-      'donationId': doc.id,
-      'uid': uid,
-      'amount': amount,
-      'note': note,
-      'source': source,
-      'supportType': supportType,
-      'sourceMandaliId': sourceMandaliId,
-      'sourceMandaliName': sourceMandaliName,
-      'sourceChallengeId': sourceChallengeId,
-      'userDisplayName': fallbackDisplayName,
-      'supporterName': resolvedSupporterName,
-      'supporterMessage': supporterMessage.trim(),
-      'anonymous': anonymous,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  Future<DocumentSnapshot<Map<String, dynamic>>> getDonation(
+      String donationId,
+      ) async {
+    return donationRef(donationId).get();
+  }
 
-    return doc.id;
+  Future<Map<String, dynamic>?> getDonationData(
+      String donationId,
+      ) async {
+    final snap = await getDonation(donationId);
+    return snap.data();
+  }
+
+  Future<bool> donationExists(String donationId) async {
+    final snap = await getDonation(donationId);
+    return snap.exists;
   }
 
   Future<void> markDonationReturned({
     required String donationId,
   }) async {
-    final ref = _userDonations.doc(donationId);
+    final ref = donationRef(donationId);
 
-    await ref.update({
+    await ref.set({
       'status': 'returned',
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> markDonationLocallyCancelled({
+    required String donationId,
+    String reason = 'payment_cancelled',
+  }) async {
+    final ref = donationRef(donationId);
+
+    await ref.set({
+      'status': 'failed',
+      'failureReason': reason.trim().isEmpty ? 'payment_cancelled' : reason.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> attachClientContextToDonation({
+    required String donationId,
+    String? note,
+    String? source,
+    String? supportType,
+    String? sourceMandaliId,
+    String? sourceMandaliName,
+    String? sourceChallengeId,
+    String? supporterName,
+    String? supporterMessage,
+    bool? anonymous,
+  }) async {
+    final ref = donationRef(donationId);
+
+    final payload = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (note != null) {
+      payload['note'] = note.trim();
+    }
+    if (source != null) {
+      payload['source'] = source.trim();
+    }
+    if (supportType != null) {
+      payload['supportType'] =
+      supportType.trim().isEmpty ? 'individual' : supportType.trim();
+    }
+    if (sourceMandaliId != null) {
+      payload['sourceMandaliId'] = sourceMandaliId.trim().isEmpty
+          ? null
+          : sourceMandaliId.trim();
+    }
+    if (sourceMandaliName != null) {
+      payload['sourceMandaliName'] = sourceMandaliName.trim().isEmpty
+          ? null
+          : sourceMandaliName.trim();
+    }
+    if (sourceChallengeId != null) {
+      payload['sourceChallengeId'] = sourceChallengeId.trim().isEmpty
+          ? null
+          : sourceChallengeId.trim();
+    }
+    if (supporterName != null) {
+      payload['supporterName'] = supporterName.trim();
+    }
+    if (supporterMessage != null) {
+      payload['supporterMessage'] = supporterMessage.trim();
+    }
+    if (anonymous != null) {
+      payload['anonymous'] = anonymous;
+    }
+
+    await ref.set(payload, SetOptions(merge: true));
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchDonation(
+      String donationId,
+      ) {
+    return donationRef(donationId).snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportWall({

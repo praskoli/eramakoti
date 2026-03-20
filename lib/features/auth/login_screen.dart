@@ -231,6 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         await FirestoreService.instance.bootstrapUser(user);
         await _saveTermsAcceptance(user);
+        await user.getIdToken(true);
 
         if (!mounted) return;
 
@@ -281,6 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         await FirestoreService.instance.bootstrapUser(user);
         await _saveTermsAcceptance(user);
+        await user.getIdToken(true);
 
         if (!mounted) return;
 
