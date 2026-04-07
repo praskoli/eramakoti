@@ -58,6 +58,15 @@ class RamakotiService {
   DocumentReference<Map<String, dynamic>> _globalDevotionCountRef() =>
       _firestore.collection('global_stats').doc('devotion_count_total');
 
+  CollectionReference<Map<String, dynamic>> _recentActivityRef() =>
+      _firestore.collection('recent_activity');
+
+  CollectionReference<Map<String, dynamic>> _liveUsersRef() =>
+      _firestore.collection('live_users');
+
+  DocumentReference<Map<String, dynamic>> _liveUserRef(String uid) =>
+      _liveUsersRef().doc(uid);
+
   int _computeDevotionTotal({
     required int inAppWriting,
     required int manualWriting,
@@ -328,6 +337,40 @@ class RamakotiService {
     return total;
   }
 
+  Stream<int> watchLiveWriters({
+    Duration activeWindow = const Duration(minutes: 2),
+    Duration pollInterval = const Duration(seconds: 20),
+  }) async* {
+    while (true) {
+      try {
+        final cutoff = Timestamp.fromDate(
+          DateTime.now().subtract(activeWindow),
+        );
+
+        final snapshot = await _liveUsersRef()
+            .where('lastActiveAt', isGreaterThanOrEqualTo: cutoff)
+            .get();
+
+        yield snapshot.docs.length;
+      } catch (_) {
+        yield 0;
+      }
+
+      await Future<void>.delayed(pollInterval);
+    }
+  }
+
+  Stream<Map<String, dynamic>?> watchRecentActivity() {
+    return _recentActivityRef()
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return null;
+      return snapshot.docs.first.data();
+    });
+  }
+
   Future<void> saveLanguageAndTarget({
     required String uid,
     required String language,
@@ -483,7 +526,7 @@ class RamakotiService {
         (summaryData['currentRunCount'] as num?)?.toInt() ?? 0;
     final targetCount = (summaryData['targetCount'] as num?)?.toInt() ?? 0;
     final totalCount = (summaryData['totalCount'] as num?)?.toInt() ?? 0;
-    final todayCount = (summaryData['todayCount'] as num?)?.toInt() ?? 0;
+    final storedTodayCount = (summaryData['todayCount'] as num?)?.toInt() ?? 0;
     final completedRunsCount =
         (summaryData['completedRunsCount'] as num?)?.toInt() ?? 0;
     final manualWritingCount =
@@ -505,6 +548,22 @@ class RamakotiService {
 
     await _ensureGlobalDevotionCounterInitialized();
 
+    final lastWrittenAtRaw = summaryData['lastWrittenAt'];
+    DateTime? lastWrittenAtDate;
+    if (lastWrittenAtRaw is Timestamp) {
+      lastWrittenAtDate = lastWrittenAtRaw.toDate();
+    } else if (lastWrittenAtRaw is String) {
+      lastWrittenAtDate = DateTime.tryParse(lastWrittenAtRaw);
+    }
+
+    final now = DateTime.now();
+    final isSameDay = lastWrittenAtDate != null &&
+        lastWrittenAtDate.year == now.year &&
+        lastWrittenAtDate.month == now.month &&
+        lastWrittenAtDate.day == now.day;
+
+    final todayCount = isSameDay ? storedTodayCount : 0;
+
     final newRunCount = currentRunCount + 1;
     final newTotalCount = totalCount + 1;
     final newTodayCount = todayCount + 1;
@@ -521,13 +580,17 @@ class RamakotiService {
 
     final runCompleted = targetCount > 0 && newRunCount >= targetCount;
 
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = now.toIso8601String();
 
     final batch = _firestore.batch();
 
     final runDocRef = _runsRef(uid).doc(currentRunId);
     final globalDocRef = _globalRamCountRef();
     final globalDevotionDocRef = _globalDevotionCountRef();
+    final recentWriteActivityDocRef = _recentActivityRef().doc();
+    final recentCompletedActivityDocRef =
+    runCompleted ? _recentActivityRef().doc() : null;
+    final liveUserDocRef = _liveUserRef(uid);
 
     batch.set(
       runDocRef,
@@ -584,6 +647,41 @@ class RamakotiService {
       },
       SetOptions(merge: true),
     );
+
+    batch.set(
+      liveUserDocRef,
+      {
+        'uid': uid,
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      recentWriteActivityDocRef,
+      {
+        'type': 'write',
+        'count': newRunCount,
+        'uid': uid,
+        'city': '',
+        'createdAt': nowIso,
+      },
+      SetOptions(merge: true),
+    );
+
+    if (recentCompletedActivityDocRef != null) {
+      batch.set(
+        recentCompletedActivityDocRef,
+        {
+          'type': 'completed',
+          'count': newRunCount,
+          'uid': uid,
+          'city': 'Hyderabad',
+          'createdAt': nowIso,
+        },
+        SetOptions(merge: true),
+      );
+    }
 
     if (activeMandaliId.isNotEmpty) {
       final mandaliRef = _mandaliRef(activeMandaliId);

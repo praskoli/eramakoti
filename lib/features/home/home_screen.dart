@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _softAccent = Color(0xFFFFF1DE);
   static const Color _softBorder = Color(0xFFEADFD2);
   static const Color _progressBg = Color(0xFFF0E7DB);
+
   ReminderInfo? _reminderInfo;
 
   @override
@@ -269,6 +270,27 @@ $appLink
     );
   }
 
+  Future<void> _shareTodayAchievement(int todayCount) async {
+    const appLink =
+        'https://play.google.com/store/apps/details?id=com.hindu.pooja';
+
+    final count = todayCount;
+    final message = '''
+Jai Shri Ram 🙏
+
+I completed $count Rama Nama today in eRamakoti.
+
+Let us write Sri Rama Nama together and spread devotion.
+
+$appLink
+''';
+
+    await Share.share(
+      message,
+      subject: 'I completed $count Rama Nama today',
+    );
+  }
+
   String _formatTimeOfDay(TimeOfDay time) {
     final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final minute = time.minute.toString().padLeft(2, '0');
@@ -446,6 +468,37 @@ $appLink
     return '${_formatIndianNumber(meta.currentRunCount)} of ${_formatIndianNumber(meta.targetCount)}';
   }
 
+  String _liveCountText(int? value) {
+    final count = value ?? 0;
+    if (count <= 0) {
+      return 'Be the first devotee writing now';
+    }
+    if (count == 1) {
+      return '1 person writing now';
+    }
+    return '$count people writing now';
+  }
+
+  String _recentActivityText(Map<String, dynamic>? data) {
+    if (data == null || data.isEmpty) {
+      return 'User from Hyderabad completed 1008';
+    }
+
+    final type = (data['type'] ?? '').toString().trim().toLowerCase();
+    final count = (data['count'] as num?)?.toInt() ?? 1008;
+    final city = (data['city'] ?? 'Hyderabad').toString().trim();
+
+    if (type == 'completed') {
+      return 'User from ${city.isEmpty ? 'Hyderabad' : city} completed $count';
+    }
+
+    if (type == 'write') {
+      return 'A devotee continued Rama Nama writing';
+    }
+
+    return 'User from Hyderabad completed 1008';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = AuthService.instance.currentUser;
@@ -522,6 +575,35 @@ $appLink
                             ),
                             const SizedBox(height: 16),
 
+                            StreamBuilder<int>(
+                              stream: RamakotiService.instance.watchLiveWriters(),
+                              builder: (context, liveSnapshot) {
+                                final liveCountText = _liveCountText(liveSnapshot.data);
+
+                                return StreamBuilder<Map<String, dynamic>?>(
+                                  stream: RamakotiService.instance.watchRecentActivity(),
+                                  builder: (context, activitySnapshot) {
+                                    final activityText = _recentActivityText(
+                                      activitySnapshot.data,
+                                    );
+
+                                    return _ActivityCard(
+                                      liveCountText: liveCountText,
+                                      activityText: activityText,
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            _TodayShareCard(
+                              todayCount: meta.todayCount,
+                              onShare: () =>
+                                  _shareTodayAchievement(meta.todayCount),
+                            ),
+                            const SizedBox(height: 16),
+
                             InkWell(
                               borderRadius: BorderRadius.circular(22),
                               onTap: () => _openBhaktaMandaliHub(context),
@@ -582,15 +664,18 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
+
                             StreamBuilder<int>(
                               stream: RamakotiService.instance.watchGlobalRamCount(),
                               builder: (context, ramSnapshot) {
                                 final ramCount = ramSnapshot.data ?? 0;
 
                                 return StreamBuilder<int>(
-                                  stream: RamakotiService.instance.watchGlobalDevotionCount(),
+                                  stream: RamakotiService.instance
+                                      .watchGlobalDevotionCount(),
                                   builder: (context, devotionSnapshot) {
-                                    final devotionCount = devotionSnapshot.data ?? 0;
+                                    final devotionCount =
+                                        devotionSnapshot.data ?? 0;
 
                                     return Container(
                                       margin: const EdgeInsets.symmetric(vertical: 12),
@@ -601,11 +686,9 @@ $appLink
                                       ),
                                       child: Column(
                                         children: [
-
-                                          // 🪔 Global Ram Count
-                                          Text(
+                                          const Text(
                                             "🌍 Global Ram Count",
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
@@ -622,13 +705,10 @@ $appLink
                                             style: TextStyle(fontSize: 11),
                                             textAlign: TextAlign.center,
                                           ),
-
                                           const SizedBox(height: 12),
-
-                                          // 🙏 Global Devotion
-                                          Text(
+                                          const Text(
                                             "🙏 Global Devotion",
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
@@ -652,12 +732,14 @@ $appLink
                                 );
                               },
                             ),
+
                             InkWell(
                               borderRadius: BorderRadius.circular(22),
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => const PersonalSummaryScreen(),
+                                    builder: (_) =>
+                                    const PersonalSummaryScreen(),
                                   ),
                                 );
                               },
@@ -685,7 +767,8 @@ $appLink
                                     const SizedBox(width: 12),
                                     const Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'Personal Devotion Summary',
@@ -716,6 +799,7 @@ $appLink
                               ),
                             ),
                             const SizedBox(height: 16),
+
                             Row(
                               children: [
                                 Expanded(
@@ -753,8 +837,7 @@ $appLink
                                   child: _MiniStatCard(
                                     icon: Icons.layers_outlined,
                                     label: 'Completed Batches',
-                                    value:
-                                    meta.completedBatchCount.toString(),
+                                    value: meta.completedBatchCount.toString(),
                                   ),
                                 ),
                               ],
@@ -1210,6 +1293,155 @@ class _HeroActionCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  final String liveCountText;
+  final String activityText;
+
+  const _ActivityCard({
+    required this.liveCountText,
+    required this.activityText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _HomeScreenState._cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _HomeScreenState._softBorder),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _HomeScreenState._softAccent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_motion_rounded,
+                  color: _HomeScreenState._accent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  liveCountText,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _HomeScreenState._textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7EB),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              activityText,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _HomeScreenState._textPrimary,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _TodayShareCard extends StatelessWidget {
+  final int todayCount;
+  final VoidCallback onShare;
+
+  const _TodayShareCard({
+    required this.todayCount,
+    required this.onShare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayCount = todayCount;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _HomeScreenState._cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _HomeScreenState._softBorder),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Today’s Sharing',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _HomeScreenState._textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'I completed $displayCount Rama Nama today',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _HomeScreenState._textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Share your devotion on WhatsApp and invite others to join.',
+            style: TextStyle(
+              fontSize: 13,
+              color: _HomeScreenState._textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: onShare,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _HomeScreenState._accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.share_rounded),
+              label: const Text(
+                'Share on WhatsApp',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

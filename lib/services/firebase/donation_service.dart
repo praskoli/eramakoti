@@ -1,6 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+class SupportWallPage {
+  const SupportWallPage({
+    required this.docs,
+    required this.lastDocument,
+    required this.hasMore,
+  });
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final DocumentSnapshot<Map<String, dynamic>>? lastDocument;
+  final bool hasMore;
+}
+
 class DonationService {
   DonationService._();
 
@@ -137,12 +149,56 @@ class DonationService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchSupportWall({
-    int limit = 8,
+    int? limit,
   }) {
-    return _supportWall
+    Query<Map<String, dynamic>> query = _supportWall
+        .where('verified', isEqualTo: true)
+        .orderBy('timestamp', descending: true);
+
+    if (limit != null) {
+      query = query.limit(limit);
+    }
+
+    return query.snapshots();
+  }
+
+  Future<SupportWallPage> fetchSupportWallPage({
+    int limit = 25,
+    DocumentSnapshot<Map<String, dynamic>>? startAfterDocument,
+  }) async {
+    Query<Map<String, dynamic>> query = _supportWall
+        .where('verified', isEqualTo: true)
+        .orderBy('timestamp', descending: true);
+
+    if (startAfterDocument != null) {
+      query = query.startAfterDocument(startAfterDocument);
+    }
+
+    final snapshot = await query.limit(limit + 1).get();
+    final allDocs = snapshot.docs;
+    final hasMore = allDocs.length > limit;
+    final docs = hasMore ? allDocs.take(limit).toList() : allDocs;
+    final lastDocument = docs.isNotEmpty ? docs.last : startAfterDocument;
+
+    return SupportWallPage(
+      docs: docs,
+      lastDocument: lastDocument,
+      hasMore: hasMore,
+    );
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  fetchSupportLeaderboard({
+    int limit = 25,
+  }) async {
+    final snapshot = await _supportWall
+        .where('verified', isEqualTo: true)
+        .orderBy('amount', descending: true)
         .orderBy('timestamp', descending: true)
         .limit(limit)
-        .snapshots();
+        .get();
+
+    return snapshot.docs;
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMyDonations() {
